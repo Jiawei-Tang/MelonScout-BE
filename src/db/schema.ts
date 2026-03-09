@@ -19,10 +19,8 @@ export const hotSearches = pgTable("hot_searches", {
   platformId: integer("platform_id").references(() => platforms.id),
   title: text("title").notNull(),
   url: text("url").notNull(),
-  description: text("description"),
   heatValue: varchar("heat_value", { length: 50 }),
   rank: integer("rank"),
-  source: text("source"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

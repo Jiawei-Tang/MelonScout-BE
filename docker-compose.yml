@@ -24,6 +24,10 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-melonscout_dev}@postgres:5432/hot_search_db
       AI_PROVIDER: ${AI_PROVIDER:-google}
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      SCRAPER_SOURCE: ${SCRAPER_SOURCE:-vvhan}
+      ANALYSIS_TOP_N: ${ANALYSIS_TOP_N:-10}
       PORT: 3000
       CRON_SCHEDULE: ${CRON_SCHEDULE:-*/15 * * * *}
     ports:

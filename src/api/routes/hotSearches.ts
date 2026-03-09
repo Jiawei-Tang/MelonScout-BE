@@ -15,10 +15,8 @@ app.get("/", async (c) => {
       platformId: schema.hotSearches.platformId,
       title: schema.hotSearches.title,
       url: schema.hotSearches.url,
-      description: schema.hotSearches.description,
       heatValue: schema.hotSearches.heatValue,
       rank: schema.hotSearches.rank,
-      source: schema.hotSearches.source,
       createdAt: schema.hotSearches.createdAt,
       analysis: {
         isClickbait: schema.aiAnalysis.isClickbait,
@@ -49,10 +47,8 @@ app.get("/:id", async (c) => {
       platformId: schema.hotSearches.platformId,
       title: schema.hotSearches.title,
       url: schema.hotSearches.url,
-      description: schema.hotSearches.description,
       heatValue: schema.hotSearches.heatValue,
       rank: schema.hotSearches.rank,
-      source: schema.hotSearches.source,
       createdAt: schema.hotSearches.createdAt,
       analysis: {
         id: schema.aiAnalysis.id,

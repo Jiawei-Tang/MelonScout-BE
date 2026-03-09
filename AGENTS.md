@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes hot search data, runs AI clickbait detection, and serves a REST API.
+MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes hot search data from Chinese platforms, runs AI clickbait detection, and serves a REST API.
 
 ### Services
 
@@ -17,14 +17,29 @@ MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes 
 
 ### Commands
 
+See `package.json` scripts for the full list. Key commands:
 - **Lint**: `bun run lint` (TypeScript `tsc --noEmit`)
 - **Test**: `bun test`
-- **DB push**: `bun run db:push`
-- **DB seed**: `bun run db:seed`
+- **DB push**: `bun run db:push` / **DB seed**: `bun run db:seed`
+
+### Scraper Sources
+
+Set `SCRAPER_SOURCE` in `.env`:
+- `placeholder` — mock data, no network needed (default for dev)
+- `vvhan` — live data from vvhan.com API (free, no key)
+- `cheerio` — self-built Weibo HTML scraper
+
+### AI Providers
+
+Set `AI_PROVIDER` in `.env`:
+- `google` — Gemini 2.0 Flash (needs `GOOGLE_AI_API_KEY`)
+- `openai` — GPT-4o-mini (needs `OPENAI_API_KEY`)
+- `deepseek` — DeepSeek-V3 (needs `DEEPSEEK_API_KEY`)
+- Falls back to keyword-based mock if no API key is set.
 
 ### Caveats
 
-- Without `GOOGLE_AI_API_KEY`, the AI module falls back to a keyword-based mock provider. Set the key in `.env` to use real Gemini analysis.
-- The scraper module currently uses a `PlaceholderScraper` returning mock data. Real scrapers should implement the `ScraperSource` interface in `src/scraper/types.ts`.
-- Docker daemon inside Cloud Agent VMs needs `fuse-overlayfs` and `iptables-legacy` (see setup docs).
-- `drizzle.config.ts` is excluded from `tsconfig.json` `include` (it sits outside `rootDir`). Drizzle Kit invokes it separately.
+- Docker daemon inside Cloud Agent VMs needs `fuse-overlayfs` and `iptables-legacy`.
+- `drizzle.config.ts` is excluded from `tsconfig.json` include (sits outside rootDir). Drizzle Kit invokes it separately.
+- The `ANALYSIS_TOP_N` setting (default 10) skips AI analysis for low-rank titles without clickbait keywords to save API costs.
+- vvhan/cheerio scrapers require external network. Use `placeholder` source in sandboxed environments.

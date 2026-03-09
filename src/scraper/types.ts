@@ -1,7 +1,6 @@
 export interface RawHotSearchItem {
   title: string;
   url: string;
-  description?: string;
   heatValue?: string;
   rank?: number;
 }

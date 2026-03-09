@@ -11,10 +11,6 @@ Output Format: 必须返回 JSON: {"isClickbait": boolean, "score": number, "rea
 - score 必须是 0-100 的整数
 - reason 使用中文`;
 
-export function buildAnalysisPrompt(title: string, description?: string | null): string {
-  let prompt = `请分析以下热搜标题：\n\n标题：${title}`;
-  if (description) {
-    prompt += `\n描述：${description}`;
-  }
-  return prompt;
+export function buildAnalysisPrompt(title: string): string {
+  return `请分析以下热搜标题：\n\n标题：${title}`;
 }

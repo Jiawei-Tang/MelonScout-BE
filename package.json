@@ -15,11 +15,12 @@
     "test": "bun test"
   },
   "dependencies": {
-    "hono": "^4",
-    "drizzle-orm": "^0.39",
-    "postgres": "^3",
     "@google/generative-ai": "^0.24",
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.39",
+    "hono": "^4",
     "node-cron": "^3",
+    "postgres": "^3",
     "zod": "^3"
   },
   "devDependencies": {

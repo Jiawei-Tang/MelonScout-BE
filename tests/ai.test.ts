@@ -7,17 +7,12 @@ describe("AI Prompts", () => {
     expect(SYSTEM_PROMPT).toContain("isClickbait");
     expect(SYSTEM_PROMPT).toContain("score");
     expect(SYSTEM_PROMPT).toContain("reason");
+    expect(SYSTEM_PROMPT).toContain("0-100");
   });
 
-  test("buildAnalysisPrompt with title only", () => {
+  test("buildAnalysisPrompt with title", () => {
     const prompt = buildAnalysisPrompt("测试标题");
     expect(prompt).toContain("测试标题");
-    expect(prompt).not.toContain("描述");
-  });
-
-  test("buildAnalysisPrompt with title and description", () => {
-    const prompt = buildAnalysisPrompt("测试标题", "一些描述");
-    expect(prompt).toContain("测试标题");
-    expect(prompt).toContain("一些描述");
+    expect(prompt).toContain("热搜标题");
   });
 });

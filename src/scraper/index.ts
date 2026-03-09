@@ -1,9 +1,24 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
-import type { ScraperSource, RawHotSearchItem } from "./types";
+import type { ScraperSource } from "./types";
 import { PlaceholderScraper } from "./sources/placeholder";
+import { VvhanScraper, SUPPORTED_PLATFORMS } from "./sources/vvhan";
+import { CheerioWeiboScraper } from "./sources/cheerio-weibo";
+import { config } from "../config";
 
-const sources: ScraperSource[] = [new PlaceholderScraper()];
+function buildSources(): ScraperSource[] {
+  switch (config.SCRAPER_SOURCE) {
+    case "vvhan":
+      return SUPPORTED_PLATFORMS.map((p) => new VvhanScraper(p));
+    case "cheerio":
+      return [new CheerioWeiboScraper()];
+    case "placeholder":
+    default:
+      return [new PlaceholderScraper()];
+  }
+}
+
+const sources: ScraperSource[] = buildSources();
 
 export function registerSource(source: ScraperSource) {
   sources.push(source);
@@ -31,10 +46,8 @@ export async function runScraper(): Promise<number> {
           platformId: platform.id,
           title: item.title,
           url: item.url,
-          description: item.description ?? null,
           heatValue: item.heatValue ?? null,
           rank: item.rank ?? null,
-          source: source.sourceName,
         });
         totalInserted++;
       }

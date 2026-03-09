@@ -1,5 +1,5 @@
 {
-  "id": "536eb335-63c7-41e2-8f99-cb06068c61be",
+  "id": "ec9078f4-4a45-4b8d-b2f6-e5728094be4c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -111,12 +111,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "heat_value": {
           "name": "heat_value",
           "type": "varchar(50)",
@@ -126,12 +120,6 @@
         "rank": {
           "name": "rank",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

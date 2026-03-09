@@ -14,10 +14,8 @@ CREATE TABLE "hot_searches" (
 	"platform_id" integer,
 	"title" text NOT NULL,
 	"url" text NOT NULL,
-	"description" text,
 	"heat_value" varchar(50),
 	"rank" integer,
-	"source" text,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
