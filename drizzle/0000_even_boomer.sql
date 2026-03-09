@@ -6,6 +6,10 @@ CREATE TABLE "ai_analysis" (
 	"reason" text,
 	"ai_model" varchar(50),
 	"updated_at" timestamp DEFAULT now(),
+	"deep_analysis" text,
+	"verdict" text,
+	"deep_ai_model" varchar(50),
+	"deep_analyzed_at" timestamp,
 	CONSTRAINT "ai_analysis_hot_search_id_unique" UNIQUE("hot_search_id")
 );
 --> statement-breakpoint

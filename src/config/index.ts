@@ -12,8 +12,13 @@ const envSchema = z.object({
   // Scraper source: "vvhan" | "cheerio" | "placeholder"
   SCRAPER_SOURCE: z.enum(["vvhan", "cheerio", "placeholder"]).default("placeholder"),
 
-  // Analysis: only analyze top N per scrape batch (0 = analyze all)
+  // Phase 1: only score top N per scrape batch (0 = score all)
   ANALYSIS_TOP_N: z.coerce.number().default(10),
+
+  // Phase 2: score threshold to trigger deep analysis (0-100)
+  DEEP_ANALYSIS_THRESHOLD: z.coerce.number().default(60),
+  // Phase 2: max items to deep-analyze per batch
+  DEEP_ANALYSIS_MAX: z.coerce.number().default(5),
 
   PORT: z.coerce.number().default(3000),
   CRON_SCHEDULE: z.string().default("*/15 * * * *"),

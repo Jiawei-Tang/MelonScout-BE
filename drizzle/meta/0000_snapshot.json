@@ -1,5 +1,5 @@
 {
-  "id": "ec9078f4-4a45-4b8d-b2f6-e5728094be4c",
+  "id": "82cfa9a8-4cac-46b6-abfa-7e4010cf8bb5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -51,6 +51,30 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
+        },
+        "deep_analysis": {
+          "name": "deep_analysis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verdict": {
+          "name": "verdict",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deep_ai_model": {
+          "name": "deep_ai_model",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deep_analyzed_at": {
+          "name": "deep_analyzed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

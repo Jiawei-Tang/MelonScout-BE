@@ -23,6 +23,10 @@ app.get("/", async (c) => {
         score: schema.aiAnalysis.score,
         reason: schema.aiAnalysis.reason,
         aiModel: schema.aiAnalysis.aiModel,
+        deepAnalysis: schema.aiAnalysis.deepAnalysis,
+        verdict: schema.aiAnalysis.verdict,
+        deepAiModel: schema.aiAnalysis.deepAiModel,
+        deepAnalyzedAt: schema.aiAnalysis.deepAnalyzedAt,
       },
     })
     .from(schema.hotSearches)
@@ -57,6 +61,10 @@ app.get("/:id", async (c) => {
         reason: schema.aiAnalysis.reason,
         aiModel: schema.aiAnalysis.aiModel,
         updatedAt: schema.aiAnalysis.updatedAt,
+        deepAnalysis: schema.aiAnalysis.deepAnalysis,
+        verdict: schema.aiAnalysis.verdict,
+        deepAiModel: schema.aiAnalysis.deepAiModel,
+        deepAnalyzedAt: schema.aiAnalysis.deepAnalyzedAt,
       },
     })
     .from(schema.hotSearches)

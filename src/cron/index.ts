@@ -10,10 +10,10 @@ export function startCronJobs() {
     console.log(`\n🔄 [${new Date().toISOString()}] Cron job started`);
     try {
       const scraped = await runScraper();
-      console.log(`📊 Scraped ${scraped} items`);
+      console.log(`📡 Scraped ${scraped} items`);
 
-      const analyzed = await analyzeNewTitles();
-      console.log(`🤖 Analyzed ${analyzed} titles`);
+      const { scored, deepAnalyzed } = await analyzeNewTitles();
+      console.log(`📊 Phase 1: scored ${scored} | 🔬 Phase 2: deep-analyzed ${deepAnalyzed}`);
     } catch (err) {
       console.error("❌ Cron job failed:", err);
     }

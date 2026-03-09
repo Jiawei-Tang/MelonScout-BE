@@ -29,9 +29,17 @@ export const aiAnalysis = pgTable("ai_analysis", {
   hotSearchId: integer("hot_search_id")
     .references(() => hotSearches.id)
     .unique(),
+
+  // ── Phase 1: quick score ──
   isClickbait: boolean("is_clickbait").default(false),
   score: integer("score"),
   reason: text("reason"),
   aiModel: varchar("ai_model", { length: 50 }),
   updatedAt: timestamp("updated_at").defaultNow(),
+
+  // ── Phase 2: deep search analysis (only for high-score items) ──
+  deepAnalysis: text("deep_analysis"),
+  verdict: text("verdict"),
+  deepAiModel: varchar("deep_ai_model", { length: 50 }),
+  deepAnalyzedAt: timestamp("deep_analyzed_at"),
 });
