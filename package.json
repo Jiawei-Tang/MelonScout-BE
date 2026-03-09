@@ -1,0 +1,31 @@
+{
+  "name": "melonscout-be",
+  "version": "0.1.0",
+  "description": "Backend of MelonScout - 瓜田侦探",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "bun run src/db/seed.ts",
+    "lint": "bunx --bun tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "^4",
+    "drizzle-orm": "^0.39",
+    "postgres": "^3",
+    "@google/generative-ai": "^0.24",
+    "node-cron": "^3",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node-cron": "^3",
+    "drizzle-kit": "^0.30",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: hot_search_db
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-melonscout_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: .
+    restart: always
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-melonscout_dev}@postgres:5432/hot_search_db
+      AI_PROVIDER: ${AI_PROVIDER:-google}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      PORT: 3000
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-*/15 * * * *}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
