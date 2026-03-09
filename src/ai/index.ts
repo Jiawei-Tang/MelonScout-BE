@@ -123,7 +123,7 @@ class OpenAICompatibleProvider implements AIProvider {
 
 // ── Mock (keyword-based, no API needed) ────────────────────────────
 
-class MockAIProvider implements AIProvider {
+export class MockAIProvider implements AIProvider {
   readonly modelName = "mock";
 
   private static CLICKBAIT_KEYWORDS = [
