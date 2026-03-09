@@ -18,6 +18,7 @@ app.get("/", async (c) => {
       heatValue: schema.hotSearches.heatValue,
       rank: schema.hotSearches.rank,
       createdAt: schema.hotSearches.createdAt,
+      extra: schema.hotSearches.extra,
       analysis: {
         isClickbait: schema.aiAnalysis.isClickbait,
         score: schema.aiAnalysis.score,
@@ -54,6 +55,7 @@ app.get("/:id", async (c) => {
       heatValue: schema.hotSearches.heatValue,
       rank: schema.hotSearches.rank,
       createdAt: schema.hotSearches.createdAt,
+      extra: schema.hotSearches.extra,
       analysis: {
         id: schema.aiAnalysis.id,
         isClickbait: schema.aiAnalysis.isClickbait,
