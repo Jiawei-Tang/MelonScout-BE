@@ -6,7 +6,11 @@ import {
   timestamp,
   boolean,
   varchar,
+  jsonb,
 } from "drizzle-orm/pg-core";
+
+/** Extra payload per source, e.g. { source, hottag, hotwordnum } for tianapi */
+export type HotSearchExtra = Record<string, unknown>;
 
 export const platforms = pgTable("platforms", {
   id: serial("id").primaryKey(),
@@ -21,7 +25,10 @@ export const hotSearches = pgTable("hot_searches", {
   url: text("url").notNull(),
   heatValue: varchar("heat_value", { length: 50 }),
   rank: integer("rank"),
+  /** When this row was fetched (same as createdAt for new rows; explicit for clarity). */
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  /** Source-specific JSON, e.g. tianapi: { source, hottag, hotwordnum }. */
+  extra: jsonb("extra").$type<HotSearchExtra>(),
 });
 
 export const aiAnalysis = pgTable("ai_analysis", {

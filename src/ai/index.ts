@@ -121,6 +121,62 @@ class OpenAICompatibleProvider implements AIProvider {
   }
 }
 
+// ── MiniMax M2.5 ─────────────────────────────────────────────────────
+
+class MiniMaxProvider implements AIProvider {
+  readonly modelName = "MiniMax-M2.5";
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  private async chat(systemPrompt: string, userPrompt: string): Promise<string> {
+    const resp = await fetch("https://api.minimax.io/v1/text/chatcompletion_v2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        stream: false,
+        temperature: 0.5,
+        top_p: 0.95,
+        max_completion_tokens: 2048,
+      }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`MiniMax API ${resp.status}: ${body}`);
+    }
+
+    const json = (await resp.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+
+    return json.choices[0].message.content;
+  }
+
+  async score(title: string): Promise<ScoreResult> {
+    const text = await this.chat(SCORE_SYSTEM_PROMPT, buildScorePrompt(title));
+    return parseJSON<ScoreResult>(text);
+  }
+
+  async deepAnalyze(title: string, sc: number, reason: string): Promise<DeepAnalysisResult> {
+    const text = await this.chat(
+      DEEP_ANALYSIS_SYSTEM_PROMPT,
+      buildDeepAnalysisPrompt(title, sc, reason),
+    );
+    return parseJSON<DeepAnalysisResult>(text);
+  }
+}
+
 // ── Mock (keyword-based, no API needed) ────────────────────────────
 
 export class MockAIProvider implements AIProvider {
@@ -195,6 +251,13 @@ function createProvider(): AIProvider {
         baseUrl: "https://api.deepseek.com/v1",
         apiKey: config.DEEPSEEK_API_KEY,
       });
+
+    case "minimax":
+      if (!config.MINIMAX_API_KEY) {
+        console.warn("⚠️ MINIMAX_API_KEY not set, falling back to mock AI provider");
+        return new MockAIProvider();
+      }
+      return new MiniMaxProvider(config.MINIMAX_API_KEY);
 
     default:
       return new MockAIProvider();
