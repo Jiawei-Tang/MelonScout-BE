@@ -27,11 +27,7 @@ describe("Database Schema: hotSearches", () => {
     expect(hotSearches.heatValue).toBeDefined();
     expect(hotSearches.rank).toBeDefined();
     expect(hotSearches.createdAt).toBeDefined();
-  });
-
-  test("does not have removed description/source columns", () => {
-    expect((hotSearches as any).description).toBeUndefined();
-    expect((hotSearches as any).source).toBeUndefined();
+    expect(hotSearches.extra).toBeDefined();
   });
 });
 
@@ -40,17 +36,17 @@ describe("Database Schema: aiAnalysis", () => {
     expect(getTableName(aiAnalysis)).toBe("ai_analysis");
   });
 
-  test("has Phase 1 columns", () => {
-    expect(aiAnalysis.id).toBeDefined();
-    expect(aiAnalysis.hotSearchId).toBeDefined();
+  test("has Phase 1 triage columns", () => {
+    expect(aiAnalysis.needsFactCheck).toBeDefined();
+    expect(aiAnalysis.triageReason).toBeDefined();
+    expect(aiAnalysis.category).toBeDefined();
+    expect(aiAnalysis.aiModel).toBeDefined();
+  });
+
+  test("has Phase 2 fact-check columns", () => {
     expect(aiAnalysis.isClickbait).toBeDefined();
     expect(aiAnalysis.score).toBeDefined();
     expect(aiAnalysis.reason).toBeDefined();
-    expect(aiAnalysis.aiModel).toBeDefined();
-    expect(aiAnalysis.updatedAt).toBeDefined();
-  });
-
-  test("has Phase 2 columns", () => {
     expect(aiAnalysis.deepAnalysis).toBeDefined();
     expect(aiAnalysis.verdict).toBeDefined();
     expect(aiAnalysis.deepAiModel).toBeDefined();

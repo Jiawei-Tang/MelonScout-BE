@@ -1,11 +1,14 @@
 CREATE TABLE "ai_analysis" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"hot_search_id" integer,
-	"is_clickbait" boolean DEFAULT false,
-	"score" integer,
-	"reason" text,
+	"needs_fact_check" boolean,
+	"triage_reason" text,
+	"category" varchar(50),
 	"ai_model" varchar(50),
 	"updated_at" timestamp DEFAULT now(),
+	"is_clickbait" boolean,
+	"score" integer,
+	"reason" text,
 	"deep_analysis" text,
 	"verdict" text,
 	"deep_ai_model" varchar(50),
@@ -20,7 +23,8 @@ CREATE TABLE "hot_searches" (
 	"url" text NOT NULL,
 	"heat_value" varchar(50),
 	"rank" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"extra" jsonb
 );
 --> statement-breakpoint
 CREATE TABLE "platforms" (

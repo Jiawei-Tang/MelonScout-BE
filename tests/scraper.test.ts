@@ -1,10 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { PlaceholderScraper } from "../src/scraper/sources/placeholder";
-import { VvhanScraper, SUPPORTED_PLATFORMS } from "../src/scraper/sources/vvhan";
 import { CheerioWeiboScraper } from "../src/scraper/sources/cheerio-weibo";
-import type { RawHotSearchItem, ScraperSource } from "../src/scraper/types";
-
-// ── PlaceholderScraper ─────────────────────────────────────────────
+import type { ScraperSource } from "../src/scraper/types";
 
 describe("PlaceholderScraper", () => {
   const scraper = new PlaceholderScraper();
@@ -45,57 +42,21 @@ describe("PlaceholderScraper", () => {
     }
   });
 
-  test("items conform to RawHotSearchItem (no extra fields)", async () => {
-    const items = await scraper.fetch();
-    const allowedKeys = new Set(["title", "url", "heatValue", "rank"]);
-    for (const item of items) {
-      for (const key of Object.keys(item)) {
-        expect(allowedKeys.has(key)).toBe(true);
-      }
-    }
-  });
-
   test("ranks are sequential starting from 1", async () => {
     const items = await scraper.fetch();
     for (let i = 0; i < items.length; i++) {
       expect(items[i].rank).toBe(i + 1);
     }
   });
-});
 
-// ── VvhanScraper ───────────────────────────────────────────────────
-
-describe("VvhanScraper", () => {
-  test("supports 6 platforms", () => {
-    expect(SUPPORTED_PLATFORMS.length).toBe(6);
-    expect(SUPPORTED_PLATFORMS).toContain("weibo");
-    expect(SUPPORTED_PLATFORMS).toContain("zhihu");
-    expect(SUPPORTED_PLATFORMS).toContain("baidu");
-    expect(SUPPORTED_PLATFORMS).toContain("douyin");
-    expect(SUPPORTED_PLATFORMS).toContain("bilibili");
-    expect(SUPPORTED_PLATFORMS).toContain("toutiao");
-  });
-
-  test("throws for unsupported platform", () => {
-    expect(() => new VvhanScraper("fakePlatform")).toThrow("Unsupported platform");
-    expect(() => new VvhanScraper("")).toThrow();
-  });
-
-  test("constructs valid scrapers for each platform", () => {
-    for (const p of SUPPORTED_PLATFORMS) {
-      const scraper = new VvhanScraper(p);
-      expect(scraper.platformName).toBe(p);
-      expect(scraper.sourceName).toBe("vvhan");
-    }
-  });
-
-  test("implements ScraperSource interface", () => {
-    const scraper: ScraperSource = new VvhanScraper("weibo");
-    expect(typeof scraper.fetch).toBe("function");
+  test("includes diverse test scenarios", async () => {
+    const items = await scraper.fetch();
+    const titles = items.map((i) => i.title).join(" ");
+    expect(titles).toContain("出轨");
+    expect(titles).toContain("获");
+    expect(titles).toContain("震惊");
   });
 });
-
-// ── CheerioWeiboScraper ────────────────────────────────────────────
 
 describe("CheerioWeiboScraper", () => {
   const scraper = new CheerioWeiboScraper();

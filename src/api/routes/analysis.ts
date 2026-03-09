@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { desc } from "drizzle-orm";
 import { db, schema } from "../../db";
-import { analyzeNewTitles, phaseOneScore, phaseTwoDeepAnalysis } from "../../ai/analyzer";
+import { analyzeNewTitles, phaseOneTriage, phaseTwoFactCheck } from "../../ai/analyzer";
 import { runScraper } from "../../scraper";
 
 const app = new Hono();
@@ -21,32 +21,32 @@ app.get("/", async (c) => {
 });
 
 app.post("/trigger", async (c) => {
-  const { scored, deepAnalyzed } = await analyzeNewTitles();
+  const { triaged, factChecked } = await analyzeNewTitles();
   return c.json({
-    message: `Phase 1: scored ${scored} titles, Phase 2: deep-analyzed ${deepAnalyzed} titles`,
-    scored,
-    deepAnalyzed,
+    message: `Phase 1: triaged ${triaged}, Phase 2: fact-checked ${factChecked}`,
+    triaged,
+    factChecked,
   });
 });
 
-app.post("/trigger/score", async (c) => {
-  const scored = await phaseOneScore();
-  return c.json({ message: `Phase 1: scored ${scored} titles`, scored });
+app.post("/trigger/triage", async (c) => {
+  const triaged = await phaseOneTriage();
+  return c.json({ message: `Phase 1: triaged ${triaged} titles`, triaged });
 });
 
-app.post("/trigger/deep", async (c) => {
-  const deepAnalyzed = await phaseTwoDeepAnalysis();
-  return c.json({ message: `Phase 2: deep-analyzed ${deepAnalyzed} titles`, deepAnalyzed });
+app.post("/trigger/factcheck", async (c) => {
+  const factChecked = await phaseTwoFactCheck();
+  return c.json({ message: `Phase 2: fact-checked ${factChecked} titles`, factChecked });
 });
 
 app.post("/scrape", async (c) => {
   const scraped = await runScraper();
-  const { scored, deepAnalyzed } = await analyzeNewTitles();
+  const { triaged, factChecked } = await analyzeNewTitles();
   return c.json({
-    message: `Scraped ${scraped}, scored ${scored}, deep-analyzed ${deepAnalyzed}`,
+    message: `Scraped ${scraped}, triaged ${triaged}, fact-checked ${factChecked}`,
     scraped,
-    scored,
-    deepAnalyzed,
+    triaged,
+    factChecked,
   });
 });
 

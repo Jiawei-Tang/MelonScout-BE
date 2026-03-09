@@ -1,24 +1,14 @@
-import { eq, isNull, isNotNull, desc, gte, and } from "drizzle-orm";
+import { eq, isNull, desc, and } from "drizzle-orm";
 import { db, schema } from "../db";
 import { aiProvider } from "./index";
 import { config } from "../config";
 
-const CLICKBAIT_KEYWORDS = [
-  "震惊", "竟然", "真相", "速看", "独家揭秘", "内幕",
-  "绝对想不到", "不知道的", "居然", "月入", "必看",
-  "太可怕了", "细思极恐", "万万没想到", "赶紧看",
-];
-
-function matchesClickbaitPattern(title: string): boolean {
-  return CLICKBAIT_KEYWORDS.some((kw) => title.includes(kw));
-}
-
-// ── Phase 1: Quick Score ───────────────────────────────────────────
+// ── Phase 1: Triage — 判断是否需要事实核查 ─────────────────────────
 //
-// Scores all unanalyzed titles (filtered by top-N + keyword pattern).
-// Stores isClickbait, score, reason into ai_analysis.
+// For each unanalyzed title (filtered by top-N), ask AI: "Does this need
+// fact-checking?" Stores needsFactCheck, triageReason, category.
 
-export async function phaseOneScore(): Promise<number> {
+export async function phaseOneTriage(): Promise<number> {
   const unanalyzed = await db
     .select({
       id: schema.hotSearches.id,
@@ -31,55 +21,49 @@ export async function phaseOneScore(): Promise<number> {
     .orderBy(desc(schema.hotSearches.createdAt));
 
   const topN = config.ANALYSIS_TOP_N;
-  const candidates =
-    topN > 0
-      ? unanalyzed.filter(
-          (item) =>
-            (item.rank !== null && item.rank <= topN) ||
-            matchesClickbaitPattern(item.title),
-        )
-      : unanalyzed;
+  const candidates = topN > 0
+    ? unanalyzed.filter((item) => item.rank !== null && item.rank <= topN)
+    : unanalyzed;
 
   const skipped = unanalyzed.length - candidates.length;
   if (skipped > 0) {
-    console.log(
-      `🔍 Phase 1 filter: ${candidates.length} candidates from ${unanalyzed.length} (top ${topN} + keyword match, skipped ${skipped})`,
-    );
+    console.log(`🔍 Phase 1: ${candidates.length} from ${unanalyzed.length} (top ${topN}, skipped ${skipped})`);
   }
 
-  console.log(`📊 Phase 1: Scoring ${candidates.length} titles with [${aiProvider.modelName}]...`);
+  console.log(`🏥 Phase 1: Triaging ${candidates.length} titles with [${aiProvider.modelName}]...`);
 
-  let scored = 0;
+  let triaged = 0;
   for (const item of candidates) {
     try {
-      const result = await aiProvider.score(item.title);
+      const result = await aiProvider.triage(item.title);
 
       await db.insert(schema.aiAnalysis).values({
         hotSearchId: item.id,
-        isClickbait: result.isClickbait,
-        score: result.score,
-        reason: result.reason,
+        needsFactCheck: result.needsFactCheck,
+        triageReason: result.triageReason,
+        category: result.category,
         aiModel: aiProvider.modelName,
       });
 
-      scored++;
+      const flag = result.needsFactCheck ? "🔴 需核查" : "🟢 正常";
+      console.log(`  ${flag} [${result.category}] "${item.title}"`);
+      triaged++;
     } catch (err) {
-      console.error(`❌ Phase 1 score failed for "${item.title}":`, err);
+      console.error(`❌ Phase 1 triage failed for "${item.title}":`, err);
     }
   }
 
-  console.log(`✅ Phase 1 complete: ${scored}/${candidates.length} titles scored`);
-  return scored;
+  console.log(`✅ Phase 1 complete: ${triaged}/${candidates.length} titles triaged`);
+  return triaged;
 }
 
-// ── Phase 2: Deep Search Analysis ──────────────────────────────────
+// ── Phase 2: Fact-check + Score ────────────────────────────────────
 //
-// Picks the top DEEP_ANALYSIS_MAX items with score >= DEEP_ANALYSIS_THRESHOLD
-// that have NOT yet been deep-analyzed, then runs a thorough search analysis
-// on each one sequentially.
+// Takes items where needsFactCheck=true AND not yet fact-checked,
+// limited to DEEP_ANALYSIS_MAX per batch. Runs thorough fact-check
+// and ALWAYS writes a score (even for items determined to be true).
 
-export async function phaseTwoDeepAnalysis(): Promise<number> {
-  const threshold = config.DEEP_ANALYSIS_THRESHOLD;
+export async function phaseTwoFactCheck(): Promise<number> {
   const maxItems = config.DEEP_ANALYSIS_MAX;
 
   const candidates = await db
@@ -87,43 +71,46 @@ export async function phaseTwoDeepAnalysis(): Promise<number> {
       id: schema.aiAnalysis.id,
       hotSearchId: schema.aiAnalysis.hotSearchId,
       title: schema.hotSearches.title,
-      score: schema.aiAnalysis.score,
-      reason: schema.aiAnalysis.reason,
+      category: schema.aiAnalysis.category,
+      triageReason: schema.aiAnalysis.triageReason,
     })
     .from(schema.aiAnalysis)
     .innerJoin(schema.hotSearches, eq(schema.aiAnalysis.hotSearchId, schema.hotSearches.id))
     .where(
       and(
-        gte(schema.aiAnalysis.score, threshold),
+        eq(schema.aiAnalysis.needsFactCheck, true),
         isNull(schema.aiAnalysis.deepAnalyzedAt),
       ),
     )
-    .orderBy(desc(schema.aiAnalysis.score))
+    .orderBy(desc(schema.aiAnalysis.updatedAt))
     .limit(maxItems);
 
   if (candidates.length === 0) {
-    console.log(`🔬 Phase 2: No items above threshold (${threshold}), skipping deep analysis`);
+    console.log("🔬 Phase 2: No items pending fact-check, skipping");
     return 0;
   }
 
   console.log(
-    `🔬 Phase 2: Deep analyzing ${candidates.length} high-score items (threshold ≥${threshold}, max ${maxItems}) with [${aiProvider.modelName}]...`,
+    `🔬 Phase 2: Fact-checking ${candidates.length} items (max ${maxItems}) with [${aiProvider.modelName}]...`,
   );
 
-  let analyzed = 0;
+  let checked = 0;
   for (const item of candidates) {
     try {
-      console.log(`  🔎 Analyzing: [score=${item.score}] "${item.title}"`);
+      console.log(`  🔎 Checking: [${item.category}] "${item.title}"`);
 
-      const result = await aiProvider.deepAnalyze(
+      const result = await aiProvider.factCheck(
         item.title,
-        item.score ?? 0,
-        item.reason ?? "",
+        item.category ?? "unknown",
+        item.triageReason ?? "",
       );
 
       await db
         .update(schema.aiAnalysis)
         .set({
+          isClickbait: result.isClickbait,
+          score: result.score,
+          reason: result.reason,
           deepAnalysis: result.deepAnalysis,
           verdict: result.verdict,
           deepAiModel: aiProvider.modelName,
@@ -131,20 +118,22 @@ export async function phaseTwoDeepAnalysis(): Promise<number> {
         })
         .where(eq(schema.aiAnalysis.id, item.id));
 
-      analyzed++;
+      const emoji = result.isClickbait ? "🚨" : "✅";
+      console.log(`    ${emoji} score=${result.score} "${result.verdict}"`);
+      checked++;
     } catch (err) {
-      console.error(`❌ Phase 2 deep analysis failed for "${item.title}":`, err);
+      console.error(`❌ Phase 2 fact-check failed for "${item.title}":`, err);
     }
   }
 
-  console.log(`✅ Phase 2 complete: ${analyzed}/${candidates.length} items deep-analyzed`);
-  return analyzed;
+  console.log(`✅ Phase 2 complete: ${checked}/${candidates.length} items fact-checked`);
+  return checked;
 }
 
-// ── Combined: run both phases sequentially ─────────────────────────
+// ── Combined ───────────────────────────────────────────────────────
 
-export async function analyzeNewTitles(): Promise<{ scored: number; deepAnalyzed: number }> {
-  const scored = await phaseOneScore();
-  const deepAnalyzed = await phaseTwoDeepAnalysis();
-  return { scored, deepAnalyzed };
+export async function analyzeNewTitles(): Promise<{ triaged: number; factChecked: number }> {
+  const triaged = await phaseOneTriage();
+  const factChecked = await phaseTwoFactCheck();
+  return { triaged, factChecked };
 }

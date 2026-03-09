@@ -1,21 +1,24 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "../config";
 import {
-  SCORE_SYSTEM_PROMPT,
-  DEEP_ANALYSIS_SYSTEM_PROMPT,
-  buildScorePrompt,
-  buildDeepAnalysisPrompt,
+  TRIAGE_SYSTEM_PROMPT,
+  FACT_CHECK_SYSTEM_PROMPT,
+  buildTriagePrompt,
+  buildFactCheckPrompt,
 } from "./prompts";
 
 // ── Result types ───────────────────────────────────────────────────
 
-export interface ScoreResult {
+export interface TriageResult {
+  needsFactCheck: boolean;
+  triageReason: string;
+  category: string;
+}
+
+export interface FactCheckResult {
   isClickbait: boolean;
   score: number;
   reason: string;
-}
-
-export interface DeepAnalysisResult {
   deepAnalysis: string;
   verdict: string;
 }
@@ -24,8 +27,8 @@ export interface DeepAnalysisResult {
 
 export interface AIProvider {
   readonly modelName: string;
-  score(title: string): Promise<ScoreResult>;
-  deepAnalyze(title: string, score: number, reason: string): Promise<DeepAnalysisResult>;
+  triage(title: string): Promise<TriageResult>;
+  factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult>;
 }
 
 function parseJSON<T>(text: string): T {
@@ -46,22 +49,24 @@ class GoogleAIProvider implements AIProvider {
     this.client = new GoogleGenerativeAI(apiKey);
   }
 
-  async score(title: string): Promise<ScoreResult> {
+  async triage(title: string): Promise<TriageResult> {
     const model = this.client.getGenerativeModel({
       model: this.modelName,
-      systemInstruction: SCORE_SYSTEM_PROMPT,
+      systemInstruction: TRIAGE_SYSTEM_PROMPT,
+      generationConfig: { responseMimeType: "application/json" },
     });
-    const result = await model.generateContent(buildScorePrompt(title));
-    return parseJSON<ScoreResult>(result.response.text());
+    const result = await model.generateContent(buildTriagePrompt(title));
+    return parseJSON<TriageResult>(result.response.text());
   }
 
-  async deepAnalyze(title: string, sc: number, reason: string): Promise<DeepAnalysisResult> {
+  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
     const model = this.client.getGenerativeModel({
       model: this.modelName,
-      systemInstruction: DEEP_ANALYSIS_SYSTEM_PROMPT,
+      systemInstruction: FACT_CHECK_SYSTEM_PROMPT,
+      generationConfig: { responseMimeType: "application/json" },
     });
-    const result = await model.generateContent(buildDeepAnalysisPrompt(title, sc, reason));
-    return parseJSON<DeepAnalysisResult>(result.response.text());
+    const result = await model.generateContent(buildFactCheckPrompt(title, category, triageReason));
+    return parseJSON<FactCheckResult>(result.response.text());
   }
 }
 
@@ -107,21 +112,18 @@ class OpenAICompatibleProvider implements AIProvider {
     return json.choices[0].message.content;
   }
 
-  async score(title: string): Promise<ScoreResult> {
-    const text = await this.chat(SCORE_SYSTEM_PROMPT, buildScorePrompt(title));
-    return parseJSON<ScoreResult>(text);
+  async triage(title: string): Promise<TriageResult> {
+    const text = await this.chat(TRIAGE_SYSTEM_PROMPT, buildTriagePrompt(title));
+    return parseJSON<TriageResult>(text);
   }
 
-  async deepAnalyze(title: string, sc: number, reason: string): Promise<DeepAnalysisResult> {
-    const text = await this.chat(
-      DEEP_ANALYSIS_SYSTEM_PROMPT,
-      buildDeepAnalysisPrompt(title, sc, reason),
-    );
-    return parseJSON<DeepAnalysisResult>(text);
+  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
+    const text = await this.chat(FACT_CHECK_SYSTEM_PROMPT, buildFactCheckPrompt(title, category, triageReason));
+    return parseJSON<FactCheckResult>(text);
   }
 }
 
-// ── MiniMax M2.5 ─────────────────────────────────────────────────────
+// ── MiniMax ────────────────────────────────────────────────────────
 
 class MiniMaxProvider implements AIProvider {
   readonly modelName = "MiniMax-M2.5";
@@ -159,21 +161,17 @@ class MiniMaxProvider implements AIProvider {
     const json = (await resp.json()) as {
       choices: Array<{ message: { content: string } }>;
     };
-
     return json.choices[0].message.content;
   }
 
-  async score(title: string): Promise<ScoreResult> {
-    const text = await this.chat(SCORE_SYSTEM_PROMPT, buildScorePrompt(title));
-    return parseJSON<ScoreResult>(text);
+  async triage(title: string): Promise<TriageResult> {
+    const text = await this.chat(TRIAGE_SYSTEM_PROMPT, buildTriagePrompt(title));
+    return parseJSON<TriageResult>(text);
   }
 
-  async deepAnalyze(title: string, sc: number, reason: string): Promise<DeepAnalysisResult> {
-    const text = await this.chat(
-      DEEP_ANALYSIS_SYSTEM_PROMPT,
-      buildDeepAnalysisPrompt(title, sc, reason),
-    );
-    return parseJSON<DeepAnalysisResult>(text);
+  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
+    const text = await this.chat(FACT_CHECK_SYSTEM_PROMPT, buildFactCheckPrompt(title, category, triageReason));
+    return parseJSON<FactCheckResult>(text);
   }
 }
 
@@ -182,40 +180,76 @@ class MiniMaxProvider implements AIProvider {
 export class MockAIProvider implements AIProvider {
   readonly modelName = "mock";
 
-  private static CLICKBAIT_KEYWORDS = [
+  private static FACT_CHECK_KEYWORDS = [
     "震惊", "绝对想不到", "真相", "竟然", "月入过万",
     "速看", "独家揭秘", "内幕", "不知道的", "居然",
   ];
 
-  async score(title: string): Promise<ScoreResult> {
-    const isClickbait = MockAIProvider.CLICKBAIT_KEYWORDS.some((kw) => title.includes(kw));
-    const score = isClickbait
-      ? 70 + Math.floor(Math.random() * 30)
-      : Math.floor(Math.random() * 30);
-    return {
-      isClickbait,
-      score,
-      reason: isClickbait
-        ? "标题包含典型标题党用语，可能存在夸大或误导"
-        : "标题描述较为客观，未发现明显标题党特征",
-    };
+  private static SCANDAL_KEYWORDS = ["出轨", "吸毒", "被捕", "劈腿", "家暴"];
+  private static CORPORATE_KEYWORDS = ["获奖", "荣获", "获得", "夺得", "斩获"];
+  private static POLICY_KEYWORDS = ["新政策", "新政", "新规", "发布"];
+
+  async triage(title: string): Promise<TriageResult> {
+    if (MockAIProvider.FACT_CHECK_KEYWORDS.some((kw) => title.includes(kw))) {
+      return { needsFactCheck: true, triageReason: "标题包含典型标题党用语", category: "clickbait" };
+    }
+    if (MockAIProvider.SCANDAL_KEYWORDS.some((kw) => title.includes(kw))) {
+      return { needsFactCheck: true, triageReason: "涉及名人丑闻，需核实来源", category: "celebrity_scandal" };
+    }
+    if (MockAIProvider.CORPORATE_KEYWORDS.some((kw) => title.includes(kw))) {
+      return { needsFactCheck: true, triageReason: "涉及企业成就声明，需核查归属", category: "corporate_claim" };
+    }
+    if (MockAIProvider.POLICY_KEYWORDS.some((kw) => title.includes(kw))) {
+      return { needsFactCheck: true, triageReason: "涉及政策变动，需核实准确性", category: "policy" };
+    }
+    return { needsFactCheck: false, triageReason: "标题表述正常，无需特别核查", category: "normal" };
   }
 
-  async deepAnalyze(title: string, sc: number, reason: string): Promise<DeepAnalysisResult> {
-    const matched = MockAIProvider.CLICKBAIT_KEYWORDS.filter((kw) => title.includes(kw));
-    return {
-      deepAnalysis:
-        `【标题手法分析】该标题使用了${matched.length > 0 ? `"${matched.join('", "')}"等` : ""}情绪化表述手法，` +
-        `通过制造悬念和夸张来吸引用户点击。` +
-        `【事实偏差评估】初步评分为 ${sc}/100，${reason}。` +
-        `经深度分析，标题存在明显的信息不对称，核心事实可能被选择性呈现或夸大。` +
-        `【结论】建议读者保持理性，关注权威信息源获取完整信息。`,
-      verdict: sc >= 80
-        ? "高度疑似标题党，标题严重偏离事实核心"
-        : sc >= 60
-          ? "存在标题党嫌疑，标题有一定程度的夸大"
-          : "标题基本客观，但表述方式有待改善",
-    };
+  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
+    const isClickbait = MockAIProvider.FACT_CHECK_KEYWORDS.some((kw) => title.includes(kw));
+    const isCorporate = category === "corporate_claim";
+    const isScandal = category === "celebrity_scandal";
+
+    let score: number;
+    let reason: string;
+    let deepAnalysis: string;
+    let verdict: string;
+
+    if (isClickbait) {
+      score = 70 + Math.floor(Math.random() * 30);
+      reason = "标题使用夸张修辞，核心事实被隐瞒或扭曲";
+      deepAnalysis =
+        `【表述手法】标题使用了煽动性词汇和悬念手法吸引点击。` +
+        `【事实调查】经核查，标题描述的事件可能存在但被严重夸大。` +
+        `【偏差评估】标题与实际情况存在较大偏差，误导分 ${score}/100。`;
+      verdict = "高度标题党，内容与标题严重不符";
+    } else if (isCorporate) {
+      score = 40 + Math.floor(Math.random() * 30);
+      reason = "企业成就归属可能存在混淆，需进一步核实";
+      deepAnalysis =
+        `【表述手法】标题直接将成就归属于品牌方。` +
+        `【事实调查】该成就可能属于供应链合作方而非品牌方直接获得。` +
+        `【偏差评估】存在归属混淆的风险，误导分 ${score}/100。`;
+      verdict = "成就归属存疑，建议核实具体获奖主体";
+    } else if (isScandal) {
+      score = 50 + Math.floor(Math.random() * 20);
+      reason = "名人丑闻消息来源未经证实";
+      deepAnalysis =
+        `【表述手法】标题以爆料口吻呈现未经证实的名人负面消息。` +
+        `【事实调查】目前无官方或当事人证实，消息来源不明。` +
+        `【偏差评估】真实性存疑，误导分 ${score}/100。`;
+      verdict = "消息未经证实，建议关注官方回应";
+    } else {
+      score = Math.floor(Math.random() * 20);
+      reason = "标题基本真实，表述较为客观";
+      deepAnalysis =
+        `【表述手法】标题用词中性，无明显夸大或误导。` +
+        `【事实调查】标题描述内容与已知事实基本一致。` +
+        `【偏差评估】标题可信度较高，误导分 ${score}/100。`;
+      verdict = "经核查，标题内容基本属实";
+    }
+
+    return { isClickbait, score, reason, deepAnalysis, verdict };
   }
 }
 

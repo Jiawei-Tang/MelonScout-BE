@@ -1,5 +1,5 @@
 {
-  "id": "82cfa9a8-4cac-46b6-abfa-7e4010cf8bb5",
+  "id": "f2bbd484-c704-4fa6-bb5e-04f0be56de30",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -20,22 +20,21 @@
           "primaryKey": false,
           "notNull": false
         },
-        "is_clickbait": {
-          "name": "is_clickbait",
+        "needs_fact_check": {
+          "name": "needs_fact_check",
           "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "reason": {
-          "name": "reason",
+        "triage_reason": {
+          "name": "triage_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": false
         },
@@ -51,6 +50,24 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
+        },
+        "is_clickbait": {
+          "name": "is_clickbait",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "deep_analysis": {
           "name": "deep_analysis",
@@ -153,6 +170,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "extra": {
+          "name": "extra",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

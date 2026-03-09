@@ -13,19 +13,14 @@ async function runJob() {
     const scraped = await runScraper();
     console.log(`📡 Scraped ${scraped} items`);
 
-    const { scored, deepAnalyzed } = await analyzeNewTitles();
-    console.log(`📊 Phase 1: scored ${scored} | 🔬 Phase 2: deep-analyzed ${deepAnalyzed}`);
+    const { triaged, factChecked } = await analyzeNewTitles();
+    console.log(`🏥 Phase 1: triaged ${triaged} | 🔬 Phase 2: fact-checked ${factChecked}`);
   } catch (err) {
     console.error("❌ Cron job failed:", err);
   }
   console.log(`✅ Cron job finished\n`);
 }
 
-/**
- * 启动时检查「所有热搜」里最新的一条 created_at：
- * - 若从未有数据，或距离现在 ≥ 阈值（默认 1 小时），则立即跑一次 runJob（抓取所有源 + AI 分析）
- * - 否则不跑，等待第一个 CRON_SCHEDULE 周期
- */
 export function startCronJobs() {
   console.log(
     `⏰ Scheduling scraper cron: "${config.CRON_SCHEDULE}" (startup: run now if last hot search > ${config.STARTUP_FETCH_THRESHOLD_HOURS}h ago)`,
@@ -43,14 +38,12 @@ export function startCronJobs() {
 
     if (lastAt > 0 && now - lastAt < THRESHOLD_MS) {
       console.log(
-        `⏭️ Last hot search fetch was ${Math.round(
-          (now - lastAt) / 60000,
-        )}min ago (< ${config.STARTUP_FETCH_THRESHOLD_HOURS}h), skip startup run`,
+        `⏭️ Last fetch was ${Math.round((now - lastAt) / 60000)}min ago (< ${config.STARTUP_FETCH_THRESHOLD_HOURS}h), skip startup run`,
       );
       return;
     }
 
-    console.log("🚀 Startup: last hot search fetch exceeded threshold (or none), running once now...");
+    console.log("🚀 Startup: running initial scrape + analysis...");
     await runJob();
   })();
 

@@ -9,7 +9,6 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
-/** Extra payload per source, e.g. { source, hottag, hotwordnum } for tianapi */
 export type HotSearchExtra = Record<string, unknown>;
 
 export const platforms = pgTable("platforms", {
@@ -25,9 +24,7 @@ export const hotSearches = pgTable("hot_searches", {
   url: text("url").notNull(),
   heatValue: varchar("heat_value", { length: 50 }),
   rank: integer("rank"),
-  /** When this row was fetched (same as createdAt for new rows; explicit for clarity). */
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  /** Source-specific JSON, e.g. tianapi: { source, hottag, hotwordnum }. */
   extra: jsonb("extra").$type<HotSearchExtra>(),
 });
 
@@ -37,14 +34,17 @@ export const aiAnalysis = pgTable("ai_analysis", {
     .references(() => hotSearches.id)
     .unique(),
 
-  // ── Phase 1: quick score ──
-  isClickbait: boolean("is_clickbait").default(false),
-  score: integer("score"),
-  reason: text("reason"),
+  // ── Phase 1: Triage — does this title need fact-checking? ──
+  needsFactCheck: boolean("needs_fact_check"),
+  triageReason: text("triage_reason"),
+  category: varchar("category", { length: 50 }),
   aiModel: varchar("ai_model", { length: 50 }),
   updatedAt: timestamp("updated_at").defaultNow(),
 
-  // ── Phase 2: deep search analysis (only for high-score items) ──
+  // ── Phase 2: Fact-check + Score (ALL fact-checked items get a score) ──
+  isClickbait: boolean("is_clickbait"),
+  score: integer("score"),
+  reason: text("reason"),
   deepAnalysis: text("deep_analysis"),
   verdict: text("verdict"),
   deepAiModel: varchar("deep_ai_model", { length: 50 }),

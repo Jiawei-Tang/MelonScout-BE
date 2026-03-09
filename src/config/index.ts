@@ -10,22 +10,19 @@ const envSchema = z.object({
   DEEPSEEK_API_KEY: z.string().optional(),
   MINIMAX_API_KEY: z.string().optional(),
 
-  // Scraper source: "vvhan" | "cheerio" | "placeholder" | "tianapi"
-  SCRAPER_SOURCE: z.enum(["vvhan", "cheerio", "placeholder", "tianapi"]).default("placeholder"),
+  // Scraper source: "cheerio" | "placeholder" | "tianapi"
+  SCRAPER_SOURCE: z.enum(["cheerio", "placeholder", "tianapi"]).default("placeholder"),
   TIANAPI_API_KEY: z.string().optional(),
 
-  // Phase 1: only score top N per scrape batch (0 = score all)
+  // Phase 1 triage: only triage top N per scrape batch (0 = triage all)
   ANALYSIS_TOP_N: z.coerce.number().default(10),
 
-  // Phase 2: score threshold to trigger deep analysis (0-100)
-  DEEP_ANALYSIS_THRESHOLD: z.coerce.number().default(60),
-  // Phase 2: max items to deep-analyze per batch
+  // Phase 2 fact-check: max items to deep-analyze per batch
   DEEP_ANALYSIS_MAX: z.coerce.number().default(5),
 
   PORT: z.coerce.number().default(3000),
   CRON_SCHEDULE: z.string().default("*/15 * * * *"),
 
-  // Startup: if last weibo hot fetch is older than this (hours), fetch once and run AI analysis
   STARTUP_FETCH_THRESHOLD_HOURS: z.coerce.number().default(1),
 });
 
