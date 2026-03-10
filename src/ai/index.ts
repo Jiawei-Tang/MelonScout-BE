@@ -134,7 +134,7 @@ class MiniMaxProvider implements AIProvider {
   }
 
   private async chat(systemPrompt: string, userPrompt: string): Promise<string> {
-    const resp = await fetch("https://api.minimax.io/v1/text/chatcompletion_v2", {
+    const resp = await fetch("https://api.minimaxi.com/v1/text/chatcompletion_v2", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -147,21 +147,33 @@ class MiniMaxProvider implements AIProvider {
           { role: "user", content: userPrompt },
         ],
         stream: false,
-        temperature: 0.5,
-        top_p: 0.95,
+        temperature: 0.2,
+        top_p: 0.9,
         max_completion_tokens: 2048,
       }),
     });
 
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`MiniMax API ${resp.status}: ${body}`);
+    const json = (await resp.json()) as {
+      base_resp?: { status_code: number; status_msg: string };
+      choices?: Array<{ message: { content: string } }>;
+    };
+
+    // MiniMax 在 HTTP 200 时也会用 base_resp 表示业务错误（如 2049 = invalid api key）
+    if (json.base_resp && json.base_resp.status_code !== 0) {
+      throw new Error(
+        `MiniMax API error ${json.base_resp.status_code}: ${json.base_resp.status_msg}`
+      );
     }
 
-    const json = (await resp.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    return json.choices[0].message.content;
+    if (!resp.ok) {
+      throw new Error(`MiniMax API HTTP ${resp.status}: ${JSON.stringify(json)}`);
+    }
+
+    const content = json.choices?.[0]?.message?.content;
+    if (content == null) {
+      throw new Error(`MiniMax API unexpected response: ${JSON.stringify(json)}`);
+    }
+    return content;
   }
 
   async triage(title: string): Promise<TriageResult> {
@@ -286,12 +298,14 @@ function createProvider(): AIProvider {
         apiKey: config.DEEPSEEK_API_KEY,
       });
 
-    case "minimax":
-      if (!config.MINIMAX_API_KEY) {
+    case "minimax": {
+      const key = config.MINIMAX_API_KEY?.trim();
+      if (!key) {
         console.warn("⚠️ MINIMAX_API_KEY not set, falling back to mock AI provider");
         return new MockAIProvider();
       }
-      return new MiniMaxProvider(config.MINIMAX_API_KEY);
+      return new MiniMaxProvider(key);
+    }
 
     default:
       return new MockAIProvider();
