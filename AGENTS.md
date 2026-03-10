@@ -1,8 +1,14 @@
 # AGENTS.md
 
+## General Preferences
+
+- **Frontend**: Use React with TypeScript by default.
+- **Backend**: Use JavaScript/TypeScript tech stacks by default (Bun + Hono, Node.js, etc.).
+- **Package manager**: Use `bun` or `pnpm` instead of `npm`. Prefer `bun` when the project already uses it.
+
 ## Cursor Cloud specific instructions
 
-MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes hot search data from Chinese platforms, runs AI clickbait detection, and serves a REST API.
+MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes hot search data from Chinese platforms, runs AI fact-check analysis, and serves a REST API.
 
 ### Services
 
@@ -26,7 +32,7 @@ See `package.json` scripts for the full list. Key commands:
 
 Set `SCRAPER_SOURCE` in `.env`:
 - `placeholder` — mock data, no network needed (default for dev)
-- `vvhan` — live data from vvhan.com API (free, no key)
+- `tianapi` — live Weibo data from 天行数据 API (needs `TIANAPI_API_KEY`)
 - `cheerio` — self-built Weibo HTML scraper
 
 ### AI Providers
@@ -35,11 +41,13 @@ Set `AI_PROVIDER` in `.env`:
 - `google` — Gemini 2.0 Flash (needs `GOOGLE_AI_API_KEY`)
 - `openai` — GPT-4o-mini (needs `OPENAI_API_KEY`)
 - `deepseek` — DeepSeek-V3 (needs `DEEPSEEK_API_KEY`)
+- `minimax` — MiniMax-M2.5 (needs `MINIMAX_API_KEY`)
 - Falls back to keyword-based mock if no API key is set.
 
 ### Caveats
 
 - Docker daemon inside Cloud Agent VMs needs `fuse-overlayfs` and `iptables-legacy`.
 - `drizzle.config.ts` is excluded from `tsconfig.json` include (sits outside rootDir). Drizzle Kit invokes it separately.
-- The `ANALYSIS_TOP_N` setting (default 10) skips AI analysis for low-rank titles without clickbait keywords to save API costs.
-- vvhan/cheerio scrapers require external network. Use `placeholder` source in sandboxed environments.
+- The `ANALYSIS_TOP_N` setting (default 10) limits Phase 1 triage to top-N titles per batch.
+- `DEEP_ANALYSIS_MAX` (default 5) caps Phase 2 fact-checks per batch to save AI tokens.
+- cheerio/tianapi scrapers require external network. Use `placeholder` source in sandboxed environments.
