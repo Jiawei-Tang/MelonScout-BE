@@ -40,6 +40,8 @@ export const aiAnalysis = pgTable("ai_analysis", {
   category: varchar("category", { length: 50 }),
   aiModel: varchar("ai_model", { length: 50 }),
   updatedAt: timestamp("updated_at").defaultNow(),
+  upVotes: integer("up_votes").default(0).notNull(),
+  downVotes: integer("down_votes").default(0).notNull(),
 
   // ── Phase 2: Fact-check + Score (ALL fact-checked items get a score) ──
   isClickbait: boolean("is_clickbait"),

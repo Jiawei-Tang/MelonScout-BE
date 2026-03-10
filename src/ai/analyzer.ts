@@ -3,6 +3,23 @@ import { db, schema } from "../db";
 import { aiProvider } from "./index";
 import { config } from "../config";
 
+function lowRiskScoreByCategory(category: string | null | undefined): number {
+  switch (category) {
+    case "normal":
+      return 8;
+    case "policy":
+      return 15;
+    case "data_claim":
+      return 18;
+    default:
+      return 12;
+  }
+}
+
+function lowRiskReason(triageReason: string | null | undefined): string {
+  return triageReason?.trim() || "分诊判断为常规话题，无需进一步事实核查。";
+}
+
 // ── Phase 1: Triage — 判断是否需要事实核查 ─────────────────────────
 //
 // For each unanalyzed title (filtered by top-N), ask AI: "Does this need
@@ -43,6 +60,10 @@ export async function phaseOneTriage(): Promise<number> {
         triageReason: result.triageReason,
         category: result.category,
         aiModel: aiProvider.modelName,
+        isClickbait: result.needsFactCheck ? null : false,
+        score: result.needsFactCheck ? null : lowRiskScoreByCategory(result.category),
+        reason: result.needsFactCheck ? null : lowRiskReason(result.triageReason),
+        verdict: result.needsFactCheck ? null : "初筛通过：该话题争议较低，当前无明显标题党风险。",
       });
 
       const flag = result.needsFactCheck ? "🔴 需核查" : "🟢 正常";
@@ -55,6 +76,35 @@ export async function phaseOneTriage(): Promise<number> {
 
   console.log(`✅ Phase 1 complete: ${triaged}/${candidates.length} titles triaged`);
   return triaged;
+}
+
+export async function backfillLowRiskScores(): Promise<number> {
+  const candidates = await db
+    .select({
+      id: schema.aiAnalysis.id,
+      category: schema.aiAnalysis.category,
+      triageReason: schema.aiAnalysis.triageReason
+    })
+    .from(schema.aiAnalysis)
+    .where(and(eq(schema.aiAnalysis.needsFactCheck, false), isNull(schema.aiAnalysis.score)));
+
+  if (candidates.length === 0) return 0;
+
+  for (const item of candidates) {
+    await db
+      .update(schema.aiAnalysis)
+      .set({
+        isClickbait: false,
+        score: lowRiskScoreByCategory(item.category),
+        reason: lowRiskReason(item.triageReason),
+        verdict: "初筛通过：该话题争议较低，当前无明显标题党风险。",
+        updatedAt: new Date()
+      })
+      .where(eq(schema.aiAnalysis.id, item.id));
+  }
+
+  console.log(`🧹 Backfilled low-risk score for ${candidates.length} AI records`);
+  return candidates.length;
 }
 
 // ── Phase 2: Fact-check + Score ────────────────────────────────────
@@ -114,6 +164,7 @@ export async function phaseTwoFactCheck(): Promise<number> {
           deepAnalysis: result.deepAnalysis,
           verdict: result.verdict,
           deepAiModel: aiProvider.modelName,
+          updatedAt: new Date(),
           deepAnalyzedAt: new Date(),
         })
         .where(eq(schema.aiAnalysis.id, item.id));
@@ -134,6 +185,7 @@ export async function phaseTwoFactCheck(): Promise<number> {
 
 export async function analyzeNewTitles(): Promise<{ triaged: number; factChecked: number }> {
   const triaged = await phaseOneTriage();
+  await backfillLowRiskScores();
   const factChecked = await phaseTwoFactCheck();
   return { triaged, factChecked };
 }

@@ -55,7 +55,9 @@ List hot searches with AI analysis results.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `platformId` | `number` | — | Filter by platform ID |
-| `limit` | `number` | `50` | Max items (capped at 200) |
+| `hasAnalysis` | `boolean` | — | Only return items with AI analysis when `true`; omit this param for all items |
+| `days` | `number` | `7` | Query window in days (max 7) |
+| `limit` | `number` | `30` | Max items (capped at 200) |
 | `offset` | `number` | `0` | Pagination offset |
 
 **Response:**
@@ -85,7 +87,14 @@ List hot searches with AI analysis results.
       }
     }
   ],
-  "meta": { "limit": 50, "offset": 0 }
+  "meta": {
+    "limit": 30,
+    "offset": 0,
+    "days": 7,
+    "hasAnalysis": false,
+    "hasMore": true,
+    "nextOffset": 30
+  }
 }
 ```
 
@@ -104,6 +113,72 @@ List hot searches with AI analysis results.
 | `deepAnalysis` | `string` | Yes | Detailed analysis report |
 | `verdict` | `string` | Yes | One-line final verdict |
 | `deepAnalyzedAt` | `string` | Yes | ISO timestamp of fact-check completion |
+
+---
+
+### `GET /api/hot-searches/highlights/top`
+
+Get top 3 highlighted hot searches (AI-analyzed only) for the header spotlight area.
+
+Selection logic (composite score):
+- Heat value (supports `万` / `亿` parsing)
+- AI update recency (`analysis.updatedAt`)
+- User votes (`upVotes`, `downVotes`)
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | `number` | `7` | Query window in days (max 7) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "title": "某热点标题",
+      "analysis": {
+        "score": 82,
+        "verdict": "标题夸张，核心信息缺失",
+        "upVotes": 12,
+        "downVotes": 2
+      },
+      "compositeScore": 19.32
+    }
+  ],
+  "meta": { "days": 7, "size": 3 }
+}
+```
+
+---
+
+### `POST /api/hot-searches/:id/votes`
+
+Vote for AI judgment quality on a hot search.
+
+**Request Body:**
+
+```json
+{ "action": "up" }
+```
+
+`action` supports:
+- `up` — “我觉得准”
+- `down` — “AI 被骗了”
+
+**Response (200):**
+
+```json
+{
+  "data": {
+    "hotSearchId": 1,
+    "upVotes": 13,
+    "downVotes": 2
+  }
+}
+```
 
 ---
 
@@ -225,4 +300,7 @@ Fetch and return the current Weibo hot search list via 天行数据 API. Items a
 | 51–70 | 可信度存疑 |
 | 71–100 | 高度标题党 / 误导 / 虚假 |
 
-> `score` is always written after fact-checking, even when `isClickbait=false`, so the frontend can display credibility for all checked items.
+> Score strategy:
+> - AI analyzed + needs deep fact-check: score comes from phase-2 fact-check result.
+> - AI analyzed + no deep fact-check needed: backend writes a low-risk score (`0-20`) during triage.
+> - Not yet analyzed: score is `null`, frontend can show `--`.
