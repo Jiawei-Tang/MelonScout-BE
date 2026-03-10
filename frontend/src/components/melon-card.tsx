@@ -43,6 +43,7 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
     down: item.analysis?.downVotes ?? 0
   });
   const [voting, setVoting] = useState(false);
+  const [votedAction, setVotedAction] = useState<"up" | "down" | null>(null);
   const score = item.analysis?.score ?? null;
   const isClickbait = item.analysis?.isClickbait ?? false;
   const stroke = useMemo(() => scoreColor(score), [score]);
@@ -50,10 +51,26 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
 
   async function handleVote(action: "up" | "down") {
     if (!item.analysis || voting) return;
+    const prevAction = votedAction;
+    const nextAction = prevAction === action ? null : action;
+    const prevVotes = votes;
+    const nextVotes = { ...votes };
+
+    if (prevAction === "up") nextVotes.up = Math.max(0, nextVotes.up - 1);
+    if (prevAction === "down") nextVotes.down = Math.max(0, nextVotes.down - 1);
+    if (nextAction === "up") nextVotes.up += 1;
+    if (nextAction === "down") nextVotes.down += 1;
+
+    setVotedAction(nextAction);
+    setVotes(nextVotes);
+    if (!nextAction) return;
+
     setVoting(true);
     try {
-      const res = await voteHotSearch(item.id, action);
-      setVotes({ up: res.data.upVotes, down: res.data.downVotes });
+      await voteHotSearch(item.id, nextAction);
+    } catch {
+      setVotedAction(prevAction);
+      setVotes(prevVotes);
     } finally {
       setVoting(false);
     }
@@ -135,17 +152,25 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
               type="button"
               onClick={() => void handleVote("up")}
               disabled={!item.analysis || voting}
-              className="rounded-md border border-slate-300 px-2 py-1 hover:border-emerald-500 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
+              className={`rounded-md border px-2 py-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                votedAction === "up"
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300"
+                  : "border-slate-300 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-700"
+              }`}
             >
-              我觉得准 ({votes.up})
+              我觉得准 (<span className="tabular-nums">{votes.up}</span>)
             </button>
             <button
               type="button"
               onClick={() => void handleVote("down")}
               disabled={!item.analysis || voting}
-              className="rounded-md border border-slate-300 px-2 py-1 hover:border-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700"
+              className={`rounded-md border px-2 py-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                votedAction === "down"
+                  ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-300"
+                  : "border-slate-300 hover:border-red-500 hover:text-red-600 dark:border-slate-700"
+              }`}
             >
-              AI 被骗了 ({votes.down})
+              AI 被骗了 (<span className="tabular-nums">{votes.down}</span>)
             </button>
           </div>
         </div>

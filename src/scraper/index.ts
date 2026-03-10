@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { db, schema } from "../db";
 import type { ScraperSource } from "./types";
 import { PlaceholderScraper } from "./sources/placeholder";
@@ -45,15 +45,36 @@ export async function runScraper(): Promise<number> {
       }
 
       for (const item of items) {
-        await db.insert(schema.hotSearches).values({
-          platformId: platform.id,
-          title: item.title,
-          url: item.url,
-          heatValue: item.heatValue ?? null,
-          rank: item.rank ?? null,
-          extra: item.extra ?? null,
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+        const existing = await db.query.hotSearches.findFirst({
+          where: and(
+            eq(schema.hotSearches.platformId, platform.id),
+            eq(schema.hotSearches.title, item.title),
+            gte(schema.hotSearches.createdAt, threeDaysAgo),
+          ),
         });
-        totalInserted++;
+
+        if (existing) {
+          await db
+            .update(schema.hotSearches)
+            .set({
+              heatValue: item.heatValue ?? existing.heatValue,
+              rank: item.rank ?? existing.rank,
+              extra: item.extra ?? existing.extra,
+            })
+            .where(eq(schema.hotSearches.id, existing.id));
+        } else {
+          await db.insert(schema.hotSearches).values({
+            platformId: platform.id,
+            title: item.title,
+            url: item.url,
+            heatValue: item.heatValue ?? null,
+            rank: item.rank ?? null,
+            extra: item.extra ?? null,
+          });
+          totalInserted++;
+        }
       }
 
       console.log(`✅ Inserted ${items.length} items from [${source.platformName}]`);
