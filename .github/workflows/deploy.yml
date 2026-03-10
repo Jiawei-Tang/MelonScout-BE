@@ -3,6 +3,12 @@ name: Deploy to Production
 on:
   push:
     branches: [release]
+  workflow_dispatch:
+    inputs:
+      db_release:
+        description: "Run database migrations?"
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -11,14 +17,19 @@ jobs:
       - name: Detect db-release
         id: check
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          if echo "$COMMIT_MSG" | grep -qi "\[db-release\]"; then
+          if [ "${{ github.event.inputs.db_release }}" = "true" ]; then
             echo "db_release=true" >> $GITHUB_OUTPUT
+            echo "DB release: true (manual trigger)"
           else
-            echo "db_release=false" >> $GITHUB_OUTPUT
+            COMMIT_MSG="${{ github.event.head_commit.message }}"
+            if echo "$COMMIT_MSG" | grep -qi "\[db-release\]"; then
+              echo "db_release=true" >> $GITHUB_OUTPUT
+              echo "DB release: true (commit message)"
+            else
+              echo "db_release=false" >> $GITHUB_OUTPUT
+              echo "DB release: false"
+            fi
           fi
-          echo "Commit message: $COMMIT_MSG"
-          echo "DB release: $(cat $GITHUB_OUTPUT | grep db_release)"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
