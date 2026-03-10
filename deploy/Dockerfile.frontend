@@ -5,7 +5,7 @@ RUN bun install --frozen-lockfile
 COPY frontend/ .
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-RUN bun run build
+RUN bunx --bun vite build
 
 FROM nginx:alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
