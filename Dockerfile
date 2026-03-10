@@ -11,7 +11,7 @@ RUN bun install --frozen-lockfile
 COPY . .
 
 FROM base AS release
-COPY --from=install /app/node_modules ./node_modules
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/package.json ./
