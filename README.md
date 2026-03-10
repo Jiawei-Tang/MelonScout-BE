@@ -55,17 +55,17 @@ bun run db:seed
 bun run dev
 ```
 
-## API Endpoints
+## API Reference
+
+See **[API.md](./API.md)** for full API documentation with request parameters and response schemas.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/api/platforms` | List all platforms |
-| GET | `/api/hot-searches` | List hot searches with AI analysis (`?platformId=`, `?limit=`, `?offset=`) |
+| GET | `/api/hot-searches` | List hot searches with AI analysis |
 | GET | `/api/hot-searches/:id` | Single hot search with full analysis |
-| GET | `/api/analysis` | List AI analysis results |
-| POST | `/api/analysis/trigger` | Trigger AI analysis for unanalyzed titles |
-| POST | `/api/analysis/scrape` | Trigger scraping + AI analysis |
+| GET | `/api/weibo-hot` | Fetch live Weibo hot searches (tianapi) |
 
 ## Configuration
 
