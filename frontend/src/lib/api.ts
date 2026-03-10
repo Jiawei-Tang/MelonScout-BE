@@ -19,6 +19,7 @@ export function getHotSearches(params: {
   limit?: number;
   offset?: number;
   hasAnalysis?: boolean;
+  onlyClickbait?: boolean;
   days?: number;
 }) {
   const searchParams = new URLSearchParams();
@@ -27,6 +28,7 @@ export function getHotSearches(params: {
   if (params.offset != null) searchParams.set("offset", String(params.offset));
   searchParams.set("days", String(params.days ?? 7));
   if (params.hasAnalysis === true) searchParams.set("hasAnalysis", "true");
+  if (params.onlyClickbait === true) searchParams.set("onlyClickbait", "true");
   const qs = searchParams.toString();
   return requestJSON<HotSearchResponse>(`/api/hot-searches${qs ? `?${qs}` : ""}`);
 }

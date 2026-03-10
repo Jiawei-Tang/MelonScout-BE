@@ -56,6 +56,7 @@ List hot searches with AI analysis results.
 |-----------|------|---------|-------------|
 | `platformId` | `number` | — | Filter by platform ID |
 | `hasAnalysis` | `boolean` | — | Only return items with AI analysis when `true`; omit this param for all items |
+| `onlyClickbait` | `boolean` | — | Only return problematic analyzed items (`isClickbait=true` or `score>=50`) when `true` |
 | `days` | `number` | `7` | Query window in days (max 7) |
 | `limit` | `number` | `30` | Max items (capped at 200) |
 | `offset` | `number` | `0` | Pagination offset |
@@ -121,6 +122,7 @@ List hot searches with AI analysis results.
 Get top 3 highlighted hot searches (AI-analyzed only) for the header spotlight area.
 
 Selection logic (composite score):
+- Clickbait/high-risk items are prioritized first (`isClickbait=true` or `score>=51`)
 - Heat value (supports `万` / `亿` parsing)
 - AI update recency (`analysis.updatedAt`)
 - User votes (`upVotes`, `downVotes`)

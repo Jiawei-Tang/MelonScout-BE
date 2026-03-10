@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { and, desc, eq, gte, sql, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { db, schema } from "../../db";
 
 const app = new Hono();
@@ -20,6 +20,21 @@ const heatValueNum = sql<number>`
     0
   )
 `;
+const voteBoostFactor = sql<number>`
+  (
+    1
+    + (
+      (1 + ${schema.aiAnalysis.upVotes})::numeric
+      / (${schema.aiAnalysis.upVotes} + ${schema.aiAnalysis.downVotes} + 2)::numeric
+    )
+  )
+`;
+const highlightCompositeScore = sql<number>`
+  (
+    LN(1 + ${heatValueNum})
+    + ((COALESCE(${schema.aiAnalysis.score}, 0)::numeric / 10.0) * ${voteBoostFactor})
+  )
+`;
 
 const effectiveUpdatedAt = sql<Date>`COALESCE(${schema.aiAnalysis.updatedAt}, ${schema.hotSearches.createdAt})`;
 const updatedDay = sql<Date>`DATE_TRUNC('day', ${effectiveUpdatedAt})`;
@@ -34,6 +49,8 @@ app.get("/", async (c) => {
   const platformId = c.req.query("platformId");
   const hasAnalysisRaw = c.req.query("hasAnalysis");
   const hasAnalysis = hasAnalysisRaw === "true" ? true : hasAnalysisRaw === "false" ? false : null;
+  const onlyClickbaitRaw = c.req.query("onlyClickbait");
+  const onlyClickbait = onlyClickbaitRaw === "true" ? true : null;
   const limit = Math.min(parsePositiveInt(c.req.query("limit"), DEFAULT_LIMIT), MAX_LIMIT);
   const offset = Number(c.req.query("offset")) || 0;
   const days = Math.min(parsePositiveInt(c.req.query("days"), DEFAULT_DAYS), MAX_DAYS);
@@ -42,6 +59,9 @@ app.get("/", async (c) => {
   const whereConds = [gte(effectiveUpdatedAt, windowStartIso)];
   if (platformId) whereConds.push(eq(schema.hotSearches.platformId, Number(platformId)));
   if (hasAnalysis === true) whereConds.push(isNotNull(schema.aiAnalysis.id));
+  if (onlyClickbait === true) {
+    whereConds.push(sql`(${schema.aiAnalysis.isClickbait} = true OR ${schema.aiAnalysis.score} >= 51)`);
+  }
 
   const rows = await db
     .select({
@@ -94,6 +114,7 @@ app.get("/", async (c) => {
       offset,
       days,
       hasAnalysis,
+      onlyClickbait,
       hasMore: nextRows.length > 0,
       nextOffset: nextRows.length > 0 ? offset + limit : null
     }
@@ -172,25 +193,13 @@ app.get("/highlights/top", async (c) => {
         downVotes: schema.aiAnalysis.downVotes,
         deepAnalyzedAt: schema.aiAnalysis.deepAnalyzedAt
       },
-      compositeScore: sql<number>`
-        (
-          LN(1 + ${heatValueNum})
-          + LEAST(2.0, (${schema.aiAnalysis.upVotes} * 0.22))
-          - LEAST(1.0, (${schema.aiAnalysis.downVotes} * 0.1))
-          + (24.0 / (EXTRACT(EPOCH FROM (NOW() - ${effectiveUpdatedAt})) / 3600 + 2.0))
-        )
-      `
+      compositeScore: highlightCompositeScore
     })
     .from(schema.hotSearches)
     .innerJoin(schema.aiAnalysis, eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId))
-    .where(and(gte(effectiveUpdatedAt, windowStartIso), isNotNull(schema.aiAnalysis.score)))
+    .where(and(gte(effectiveUpdatedAt, windowStartIso), eq(schema.aiAnalysis.needsFactCheck, true)))
     .orderBy(
-      desc(sql`(
-        LN(1 + ${heatValueNum})
-        + LEAST(2.0, (${schema.aiAnalysis.upVotes} * 0.22))
-        - LEAST(1.0, (${schema.aiAnalysis.downVotes} * 0.1))
-        + (24.0 / (EXTRACT(EPOCH FROM (NOW() - ${effectiveUpdatedAt})) / 3600 + 2.0))
-      )`),
+      desc(highlightCompositeScore),
       desc(effectiveUpdatedAt)
     )
     .limit(3);

@@ -24,7 +24,7 @@ function topRiskPlatforms(items: HotSearchItem[], platforms: Platform[]) {
   for (const item of items) {
     const current = counter.get(item.platformId) ?? { bad: 0, all: 0 };
     current.all += 1;
-    if ((item.analysis?.score ?? 0) >= 71 || item.analysis?.isClickbait) current.bad += 1;
+    if ((item.analysis?.score ?? 0) >= 51 || item.analysis?.isClickbait) current.bad += 1;
     counter.set(item.platformId, current);
   }
   return [...counter.entries()]

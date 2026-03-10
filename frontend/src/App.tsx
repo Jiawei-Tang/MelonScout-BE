@@ -21,7 +21,7 @@ function Logo() {
       <div className="grid h-10 w-10 place-items-center rounded-full bg-detective-green/15 text-xl">🍉</div>
       <div>
         <p className="text-lg font-extrabold tracking-tight">瓜田侦探</p>
-        <p className="text-xs text-slate-500 dark:text-slate-300">Melon Detective</p>
+        <p className="text-xs text-slate-500 dark:text-slate-300">Melon Scout</p>
       </div>
     </div>
   );
@@ -33,6 +33,7 @@ export default function App() {
   const [highlights, setHighlights] = useState<Array<HotSearchItem & { compositeScore: number }>>([]);
   const [filter, setFilter] = useState<PlatformFilter>("all");
   const [onlyAnalyzed, setOnlyAnalyzed] = useState(false);
+  const [onlyClickbait, setOnlyClickbait] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -62,16 +63,14 @@ export default function App() {
     setLoading(true);
     setOffset(0);
     setHasMore(true);
-    const params =
-      filter === "all"
-        ? { limit: PAGE_SIZE, offset: 0, hasAnalysis: onlyAnalyzed ? true : undefined, days: QUERY_DAYS }
-        : {
-            platformId: filter,
-            limit: PAGE_SIZE,
-            offset: 0,
-            hasAnalysis: onlyAnalyzed ? true : undefined,
-            days: QUERY_DAYS
-          };
+    const params = {
+      ...(filter === "all" ? {} : { platformId: filter }),
+      limit: PAGE_SIZE,
+      offset: 0,
+      hasAnalysis: onlyAnalyzed ? true : undefined,
+      onlyClickbait: onlyClickbait ? true : undefined,
+      days: QUERY_DAYS
+    };
     void getHotSearches(params)
       .then((res) => {
         setItems(res.data);
@@ -80,21 +79,19 @@ export default function App() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [filter, onlyAnalyzed]);
+  }, [filter, onlyAnalyzed, onlyClickbait]);
 
   const loadMore = useCallback(() => {
     if (loading || loadingMore || !hasMore) return;
     setLoadingMore(true);
-    const params =
-      filter === "all"
-        ? { limit: PAGE_SIZE, offset, hasAnalysis: onlyAnalyzed ? true : undefined, days: QUERY_DAYS }
-        : {
-            platformId: filter,
-            limit: PAGE_SIZE,
-            offset,
-            hasAnalysis: onlyAnalyzed ? true : undefined,
-            days: QUERY_DAYS
-          };
+    const params = {
+      ...(filter === "all" ? {} : { platformId: filter }),
+      limit: PAGE_SIZE,
+      offset,
+      hasAnalysis: onlyAnalyzed ? true : undefined,
+      onlyClickbait: onlyClickbait ? true : undefined,
+      days: QUERY_DAYS
+    };
     void getHotSearches(params)
       .then((res) => {
         setItems((prev) => {
@@ -107,7 +104,7 @@ export default function App() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoadingMore(false));
-  }, [filter, hasMore, loading, loadingMore, offset, onlyAnalyzed]);
+  }, [filter, hasMore, loading, loadingMore, offset, onlyAnalyzed, onlyClickbait]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -124,7 +121,7 @@ export default function App() {
 
   const stats = useMemo(() => {
     const inspected = items.length;
-    const clickbait = items.filter((item) => (item.analysis?.score ?? 0) >= 71 || item.analysis?.isClickbait).length;
+    const clickbait = items.filter((item) => (item.analysis?.score ?? 0) >= 51 || item.analysis?.isClickbait).length;
     return { inspected, clickbait };
   }, [items]);
 
@@ -181,19 +178,32 @@ export default function App() {
         <section className="space-y-4">
           <TopHighlights items={highlights} platforms={platforms} />
 
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
             <p className="text-sm text-slate-600 dark:text-slate-300">列表窗口：最近 {QUERY_DAYS} 天</p>
-            <button
-              type="button"
-              onClick={() => setOnlyAnalyzed((v) => !v)}
-              className={`rounded-full px-3 py-1.5 text-sm ${
-                onlyAnalyzed
-                  ? "bg-detective-green text-white"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              }`}
-            >
-              {onlyAnalyzed ? "仅AI分析: 已开启" : "仅看AI分析"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOnlyAnalyzed((v) => !v)}
+                className={`rounded-full px-3 py-1.5 text-sm ${
+                  onlyAnalyzed
+                    ? "bg-detective-green text-white"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                }`}
+              >
+                {onlyAnalyzed ? "仅AI分析: 已开启" : "仅看AI分析"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnlyClickbait((v) => !v)}
+                className={`rounded-full px-3 py-1.5 text-sm ${
+                  onlyClickbait
+                    ? "bg-red-500 text-white"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                }`}
+              >
+                {onlyClickbait ? "仅标题党: 已开启" : "仅看标题党"}
+              </button>
+            </div>
           </div>
 
           {loading && <p className="text-sm text-slate-500">正在翻查卷宗...</p>}

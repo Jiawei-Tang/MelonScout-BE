@@ -17,7 +17,7 @@ export function TopHighlights({ items, platforms }: TopHighlightsProps) {
           <Sparkles size={18} className="text-detective-green" />
           重点卷宗 Top 3
         </h2>
-        <p className="text-xs text-slate-500">按热度 + 更新时间 + 用户点赞综合排序（最近7天）</p>
+        <p className="text-xs text-slate-500">标题党优先，其次按热度 + 更新时间 + 用户点赞综合排序（最近7天）</p>
       </CardHeader>
       <CardContent className="space-y-2">
         {items.map((item, index) => {

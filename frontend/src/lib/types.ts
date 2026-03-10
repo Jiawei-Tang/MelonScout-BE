@@ -41,6 +41,7 @@ export interface HotSearchResponse {
     offset: number;
     days: number;
     hasAnalysis: boolean | null;
+    onlyClickbait?: boolean | null;
     hasMore: boolean;
     nextOffset: number | null;
   };
