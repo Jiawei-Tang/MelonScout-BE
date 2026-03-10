@@ -21,9 +21,9 @@ const envSchema = z.object({
   DEEP_ANALYSIS_MAX: z.coerce.number().default(5),
 
   PORT: z.coerce.number().default(3000),
-  CRON_SCHEDULE: z.string().default("*/15 * * * *"),
+  CRON_SCHEDULE: z.string().default("0 */12 * * *"),
 
-  STARTUP_FETCH_THRESHOLD_HOURS: z.coerce.number().default(1),
+  STARTUP_FETCH_THRESHOLD_HOURS: z.coerce.number().default(6),
 });
 
 function loadConfig() {
