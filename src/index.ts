@@ -1,5 +1,5 @@
 import api from "./api";
-import { config } from "./config";
+import { appConfig } from "./config";
 import { startCronJobs } from "./cron";
 
 console.log("🍉 MelonScout Backend starting...");
@@ -7,8 +7,8 @@ console.log("🍉 MelonScout Backend starting...");
 startCronJobs();
 
 export default {
-  port: config.PORT,
+  port: appConfig.server.port,
   fetch: api.fetch,
 };
 
-console.log(`🚀 Server running at http://localhost:${config.PORT}`);
+console.log(`🚀 Server running at http://localhost:${appConfig.server.port}`);

@@ -18,18 +18,12 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-melonscout_dev}@postgres:5432/hot_search_db
-      AI_PROVIDER: ${AI_PROVIDER:-google}
+      DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
-      SCRAPER_SOURCE: ${SCRAPER_SOURCE:-placeholder}
       TIANAPI_API_KEY: ${TIANAPI_API_KEY:-}
-      ANALYSIS_TOP_N: ${ANALYSIS_TOP_N:-10}
-      DEEP_ANALYSIS_MAX: ${DEEP_ANALYSIS_MAX:-5}
-      PORT: 3000
-      CRON_SCHEDULE: ${CRON_SCHEDULE:-*/15 * * * *}
-      STARTUP_FETCH_THRESHOLD_HOURS: ${STARTUP_FETCH_THRESHOLD_HOURS:-1}
     depends_on:
       postgres:
         condition: service_healthy

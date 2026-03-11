@@ -1,42 +1,56 @@
-import { z } from "zod";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+import { appConfigSchema, type AppConfig, type PlatformConfig } from "./schema";
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
+function findConfigPath(): string {
+  const candidates = [
+    resolve(process.cwd(), "melonscout.config.json"),
+    resolve(import.meta.dir, "../../melonscout.config.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      readFileSync(p, "utf-8");
+      return p;
+    } catch {}
+  }
+  throw new Error(
+    `melonscout.config.json not found. Searched: ${candidates.join(", ")}`,
+  );
+}
 
-  // AI
-  AI_PROVIDER: z.enum(["google", "openai", "deepseek", "minimax", "doubao"]).default("google"),
-  GOOGLE_AI_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  DEEPSEEK_API_KEY: z.string().optional(),
-  MINIMAX_API_KEY: z.string().optional(),
-  DOUBAO_API_KEY: z.string().optional(),
-  DOUBAO_MODEL: z.string().default("doubao-seed-2-0-pro-260215"),
-
-  // Scraper source: "cheerio" | "placeholder" | "tianapi"
-  SCRAPER_SOURCE: z.enum(["cheerio", "placeholder", "tianapi"]).default("placeholder"),
-  TIANAPI_API_KEY: z.string().optional(),
-
-  // Phase 1 triage: only triage top N per scrape batch (0 = triage all)
-  ANALYSIS_TOP_N: z.coerce.number().default(10),
-
-  // Phase 2 fact-check: max items to deep-analyze per batch
-  DEEP_ANALYSIS_MAX: z.coerce.number().default(5),
-
-  PORT: z.coerce.number().default(3000),
-  CRON_SCHEDULE: z.string().default("0 */12 * * *"),
-
-  STARTUP_FETCH_THRESHOLD_HOURS: z.coerce.number().default(6),
-});
-
-function loadConfig() {
-  const result = envSchema.safeParse(process.env);
+function loadAppConfig(): AppConfig {
+  const configPath = findConfigPath();
+  console.log(`📄 Loading config from ${configPath}`);
+  const raw = JSON.parse(readFileSync(configPath, "utf-8"));
+  const result = appConfigSchema.safeParse(raw);
   if (!result.success) {
-    console.error("❌ Invalid environment variables:");
+    console.error("❌ Invalid melonscout.config.json:");
     console.error(result.error.format());
     process.exit(1);
   }
   return result.data;
 }
 
-export const config = loadConfig();
-export type Config = z.infer<typeof envSchema>;
+export const appConfig = loadAppConfig();
+
+export function resolveEnv(envName: string): string | undefined {
+  return process.env[envName]?.trim() || undefined;
+}
+
+export function requireEnv(envName: string, context: string): string {
+  const val = resolveEnv(envName);
+  if (!val) {
+    throw new Error(`Environment variable ${envName} is required for ${context}`);
+  }
+  return val;
+}
+
+export function getEnabledPlatforms(): Array<[string, PlatformConfig]> {
+  return Object.entries(appConfig.platforms).filter(([, p]) => p.enabled);
+}
+
+export function getDatabaseUrl(): string {
+  return requireEnv(appConfig.database.urlEnv, "database connection");
+}
+
+export { type AppConfig, type PlatformConfig } from "./schema";

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { config } from "../config";
+import { appConfig, resolveEnv } from "../config";
 import {
   TRIAGE_SYSTEM_PROMPT,
   FACT_CHECK_SYSTEM_PROMPT,
@@ -362,60 +362,55 @@ export class MockAIProvider implements AIProvider {
   }
 }
 
-// ── Factory ────────────────────────────────────────────────────────
+// ── Factory (config-driven) ─────────────────────────────────────────
 
-function createProvider(): AIProvider {
-  switch (config.AI_PROVIDER) {
+const PROVIDER_DEFAULTS: Record<string, { model: string; baseUrl?: string }> = {
+  google:  { model: "gemini-2.0-flash" },
+  openai:  { model: "gpt-4o-mini", baseUrl: "https://api.openai.com/v1" },
+  deepseek:{ model: "deepseek-chat", baseUrl: "https://api.deepseek.com/v1" },
+  doubao:  { model: "doubao-seed-2-0-pro-260215" },
+  minimax: { model: "MiniMax-M2.5" },
+};
+
+export function createAIProvider(
+  provider: string,
+  apiKeyEnv: string,
+  model?: string,
+): AIProvider {
+  const apiKey = resolveEnv(apiKeyEnv);
+  const defaults = PROVIDER_DEFAULTS[provider];
+
+  if (!apiKey) {
+    console.warn(`⚠️ ${apiKeyEnv} not set, falling back to mock AI provider`);
+    return new MockAIProvider();
+  }
+
+  switch (provider) {
     case "google":
-      if (!config.GOOGLE_AI_API_KEY) {
-        console.warn("⚠️ GOOGLE_AI_API_KEY not set, falling back to mock AI provider");
-        return new MockAIProvider();
-      }
-      return new GoogleAIProvider(config.GOOGLE_AI_API_KEY);
+      return new GoogleAIProvider(apiKey);
 
     case "openai":
-      if (!config.OPENAI_API_KEY) {
-        console.warn("⚠️ OPENAI_API_KEY not set, falling back to mock AI provider");
-        return new MockAIProvider();
-      }
-      return new OpenAICompatibleProvider({
-        model: "gpt-4o-mini",
-        baseUrl: "https://api.openai.com/v1",
-        apiKey: config.OPENAI_API_KEY,
-      });
-
     case "deepseek":
-      if (!config.DEEPSEEK_API_KEY) {
-        console.warn("⚠️ DEEPSEEK_API_KEY not set, falling back to mock AI provider");
-        return new MockAIProvider();
-      }
       return new OpenAICompatibleProvider({
-        model: "deepseek-chat",
-        baseUrl: "https://api.deepseek.com/v1",
-        apiKey: config.DEEPSEEK_API_KEY,
+        model: model ?? defaults?.model ?? "gpt-4o-mini",
+        baseUrl: defaults?.baseUrl ?? "https://api.openai.com/v1",
+        apiKey,
       });
 
-    case "minimax": {
-      const key = config.MINIMAX_API_KEY?.trim();
-      if (!key) {
-        console.warn("⚠️ MINIMAX_API_KEY not set, falling back to mock AI provider");
-        return new MockAIProvider();
-      }
-      return new MiniMaxProvider(key);
-    }
+    case "minimax":
+      return new MiniMaxProvider(apiKey);
 
-    case "doubao": {
-      const key = config.DOUBAO_API_KEY?.trim();
-      if (!key) {
-        console.warn("⚠️ DOUBAO_API_KEY not set, falling back to mock AI provider");
-        return new MockAIProvider();
-      }
-      return new DoubaoProvider(key, config.DOUBAO_MODEL);
-    }
+    case "doubao":
+      return new DoubaoProvider(apiKey, model ?? defaults?.model ?? "doubao-seed-2-0-pro-260215");
 
     default:
+      console.warn(`⚠️ Unknown AI provider "${provider}", using mock`);
       return new MockAIProvider();
   }
 }
 
-export const aiProvider = createProvider();
+export const aiProvider = createAIProvider(
+  appConfig.ai.provider,
+  appConfig.ai.apiKeyEnv,
+  appConfig.ai.model,
+);

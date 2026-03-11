@@ -1,25 +1,23 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
-import { TianapiWeiboScraper } from "../../scraper/sources/tianapi-weibo";
-import { config } from "../../config";
+import { appConfig, resolveEnv } from "../../config";
+import { createScraper, runPlatformScraper } from "../../scraper";
 
 const app = new Hono();
 
-/**
- * GET /api/weibo-hot
- * Fetches 微博热搜 from 天行数据 (tianapi), saves to DB under platform "weibo", returns the list.
- * Requires TIANAPI_API_KEY in .env.
- */
 app.get("/", async (c) => {
-  if (!config.TIANAPI_API_KEY) {
-    return c.json(
-      { error: "TIANAPI_API_KEY is not configured" },
-      503,
-    );
+  const weiboCfg = appConfig.platforms["weibo"];
+  if (!weiboCfg) {
+    return c.json({ error: "Platform 'weibo' not configured" }, 503);
   }
 
-  const scraper = new TianapiWeiboScraper(config.TIANAPI_API_KEY);
+  const apiKeyEnv = weiboCfg.scraper.apiKeyEnv;
+  if (apiKeyEnv && !resolveEnv(apiKeyEnv)) {
+    return c.json({ error: `${apiKeyEnv} is not set` }, 503);
+  }
+
+  const scraper = createScraper("weibo", weiboCfg.scraper);
   const items = await scraper.fetch();
 
   const platform = await db.query.platforms.findFirst({
@@ -27,14 +25,10 @@ app.get("/", async (c) => {
   });
 
   if (!platform) {
-    return c.json(
-      { error: "Platform 'weibo' not found in DB. Run: bun run db:seed" },
-      503,
-    );
+    return c.json({ error: "Platform 'weibo' not found in DB. Run: bun run db:seed" }, 503);
   }
 
   const fetchedAt = new Date().toISOString();
-
   for (const item of items) {
     await db.insert(schema.hotSearches).values({
       platformId: platform.id,
@@ -57,11 +51,7 @@ app.get("/", async (c) => {
   return c.json({
     code: 200,
     msg: "success",
-    result: {
-      list,
-      fetchedAt,
-      saved: items.length,
-    },
+    result: { list, fetchedAt, saved: items.length },
   });
 });
 

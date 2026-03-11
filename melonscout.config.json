@@ -1,0 +1,92 @@
+{
+  "server": {
+    "port": 3000
+  },
+  "database": {
+    "urlEnv": "DATABASE_URL"
+  },
+  "ai": {
+    "provider": "doubao",
+    "apiKeyEnv": "DOUBAO_API_KEY",
+    "model": "doubao-seed-2-0-pro-260215",
+    "analysisCron": "5 */6 * * *"
+  },
+  "platforms": {
+    "weibo": {
+      "displayName": "微博",
+      "enabled": true,
+      "scraper": {
+        "type": "tianapi",
+        "apiKeyEnv": "TIANAPI_API_KEY",
+        "cron": "0 */6 * * *"
+      },
+      "analysis": {
+        "topN": 15,
+        "deepAnalysisMax": 5
+      }
+    },
+    "zhihu": {
+      "displayName": "知乎",
+      "enabled": false,
+      "scraper": {
+        "type": "placeholder",
+        "cron": "0 */12 * * *"
+      },
+      "analysis": {
+        "topN": 10,
+        "deepAnalysisMax": 3
+      }
+    },
+    "baidu": {
+      "displayName": "百度",
+      "enabled": false,
+      "scraper": {
+        "type": "placeholder",
+        "cron": "0 */12 * * *"
+      },
+      "analysis": {
+        "topN": 10,
+        "deepAnalysisMax": 3
+      }
+    },
+    "douyin": {
+      "displayName": "抖音",
+      "enabled": false,
+      "scraper": {
+        "type": "placeholder",
+        "cron": "0 */12 * * *"
+      },
+      "analysis": {
+        "topN": 10,
+        "deepAnalysisMax": 3
+      }
+    },
+    "bilibili": {
+      "displayName": "哔哩哔哩",
+      "enabled": false,
+      "scraper": {
+        "type": "placeholder",
+        "cron": "0 */12 * * *"
+      },
+      "analysis": {
+        "topN": 10,
+        "deepAnalysisMax": 3
+      }
+    },
+    "toutiao": {
+      "displayName": "今日头条",
+      "enabled": false,
+      "scraper": {
+        "type": "placeholder",
+        "cron": "0 */12 * * *"
+      },
+      "analysis": {
+        "topN": 10,
+        "deepAnalysisMax": 3
+      }
+    }
+  },
+  "startup": {
+    "fetchThresholdHours": 6
+  }
+}

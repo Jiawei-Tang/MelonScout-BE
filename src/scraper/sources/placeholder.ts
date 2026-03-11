@@ -1,8 +1,12 @@
 import type { ScraperSource, RawHotSearchItem } from "../types";
 
 export class PlaceholderScraper implements ScraperSource {
-  readonly platformName = "weibo";
+  readonly platformName: string;
   readonly sourceName = "placeholder";
+
+  constructor(platformName: string = "weibo") {
+    this.platformName = platformName;
+  }
 
   async fetch(): Promise<RawHotSearchItem[]> {
     return [

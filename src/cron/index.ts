@@ -1,110 +1,107 @@
 import cron from "node-cron";
 import { desc, isNull, eq, and } from "drizzle-orm";
-import { config } from "../config";
+import { appConfig, getEnabledPlatforms } from "../config";
 import { db, schema } from "../db";
-import { runScraper } from "../scraper";
-import { analyzeNewTitles } from "../ai/analyzer";
+import { createScraper, runPlatformScraper } from "../scraper";
+import { runAllAnalysis, runAnalysisForPlatform } from "../ai/analyzer";
 
-const THRESHOLD_MS = config.STARTUP_FETCH_THRESHOLD_HOURS * 60 * 60 * 1000;
+const THRESHOLD_MS = appConfig.startup.fetchThresholdHours * 60 * 60 * 1000;
 
-async function runScrapeAndAnalysis() {
-  console.log(`\n🔄 [${new Date().toISOString()}] Cron job started`);
-  try {
-    const scraped = await runScraper();
-    console.log(`📡 Scraped ${scraped} items`);
-
-    const { triaged, factChecked } = await analyzeNewTitles();
-    console.log(
-      `🏥 Phase 1: triaged ${triaged} | 🔬 Phase 2: fact-checked ${factChecked}`,
-    );
-  } catch (err) {
-    console.error("❌ Cron job failed:", err);
+async function checkStartup() {
+  const enabledPlatforms = getEnabledPlatforms();
+  if (enabledPlatforms.length === 0) {
+    console.log("⚠️ No platforms enabled, skipping startup check");
+    return;
   }
-  console.log(`✅ Cron job finished\n`);
-}
 
-async function countPendingWork(): Promise<{
-  untriaged: number;
-  unchecked: number;
-}> {
-  const [untriagedRow] = await db
-    .select({ count: schema.hotSearches.id })
+  const [latest] = await db
+    .select({ createdAt: schema.hotSearches.createdAt })
     .from(schema.hotSearches)
-    .leftJoin(
-      schema.aiAnalysis,
-      eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId),
-    )
-    .where(isNull(schema.aiAnalysis.id));
-  const untriaged = untriagedRow ? 1 : 0;
+    .orderBy(desc(schema.hotSearches.createdAt))
+    .limit(1);
 
-  const untriagedAll = await db
+  const lastAt = latest?.createdAt ? new Date(latest.createdAt).getTime() : 0;
+  const now = Date.now();
+  const dataFresh = lastAt > 0 && now - lastAt < THRESHOLD_MS;
+
+  if (!dataFresh) {
+    console.log("🚀 Startup: data stale or empty, running full scrape + analysis...");
+    for (const [name, platformCfg] of enabledPlatforms) {
+      try {
+        const scraper = createScraper(name, platformCfg.scraper);
+        await runPlatformScraper(name, scraper);
+      } catch (err) {
+        console.error(`❌ Startup scrape failed [${name}]:`, err);
+      }
+    }
+    const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+    const { triaged, factChecked } = await runAllAnalysis(platforms);
+    console.log(`✅ Startup done: triaged ${triaged}, fact-checked ${factChecked}`);
+    return;
+  }
+
+  console.log(
+    `⏭️ Last fetch ${Math.round((now - lastAt) / 60000)}min ago (< ${appConfig.startup.fetchThresholdHours}h), skip scraping`,
+  );
+
+  const untriagedRows = await db
     .select({ id: schema.hotSearches.id })
     .from(schema.hotSearches)
-    .leftJoin(
-      schema.aiAnalysis,
-      eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId),
-    )
+    .leftJoin(schema.aiAnalysis, eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId))
     .where(isNull(schema.aiAnalysis.id));
 
-  const uncheckedAll = await db
+  const uncheckedRows = await db
     .select({ id: schema.aiAnalysis.id })
     .from(schema.aiAnalysis)
-    .where(
-      and(
-        eq(schema.aiAnalysis.needsFactCheck, true),
-        isNull(schema.aiAnalysis.deepAnalyzedAt),
-      ),
-    );
+    .where(and(eq(schema.aiAnalysis.needsFactCheck, true), isNull(schema.aiAnalysis.deepAnalyzedAt)));
 
-  return { untriaged: untriagedAll.length, unchecked: uncheckedAll.length };
+  if (untriagedRows.length > 0 || uncheckedRows.length > 0) {
+    console.log(
+      `🔎 Startup: ${untriagedRows.length} untriaged, ${uncheckedRows.length} awaiting fact-check`,
+    );
+    const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+    const { triaged, factChecked } = await runAllAnalysis(platforms);
+    console.log(`✅ Startup analysis done: triaged ${triaged}, fact-checked ${factChecked}`);
+  } else {
+    console.log("✅ All caught up, no pending work");
+  }
 }
 
 export function startCronJobs() {
-  console.log(
-    `⏰ Scheduling scraper cron: "${config.CRON_SCHEDULE}" (startup threshold: ${config.STARTUP_FETCH_THRESHOLD_HOURS}h)`,
-  );
+  const enabledPlatforms = getEnabledPlatforms();
 
-  void (async () => {
-    const [latest] = await db
-      .select({ createdAt: schema.hotSearches.createdAt })
-      .from(schema.hotSearches)
-      .orderBy(desc(schema.hotSearches.createdAt))
-      .limit(1);
+  console.log(`⏰ Registering cron jobs for ${enabledPlatforms.length} platform(s)...`);
 
-    const lastAt = latest?.createdAt ? new Date(latest.createdAt).getTime() : 0;
-    const now = Date.now();
-    const dataFresh = lastAt > 0 && now - lastAt < THRESHOLD_MS;
+  // Per-platform scraper crons
+  for (const [name, platformCfg] of enabledPlatforms) {
+    const scraper = createScraper(name, platformCfg.scraper);
+    const cronExpr = platformCfg.scraper.cron;
 
-    if (!dataFresh) {
-      console.log(
-        "🚀 Startup: data stale or empty, running full scrape + analysis...",
-      );
-      await runScrapeAndAnalysis();
-      return;
-    }
-
-    console.log(
-      `⏭️ Last fetch was ${Math.round((now - lastAt) / 60000)}min ago (< ${config.STARTUP_FETCH_THRESHOLD_HOURS}h), skip scraping`,
-    );
-
-    const { untriaged, unchecked } = await countPendingWork();
-    if (untriaged > 0 || unchecked > 0) {
-      console.log(
-        `🔎 Startup: found pending work — ${untriaged} untriaged, ${unchecked} awaiting fact-check. Running analysis...`,
-      );
+    console.log(`  📡 [${name}] scraper cron: "${cronExpr}"`);
+    cron.schedule(cronExpr, async () => {
+      console.log(`\n🔄 [${new Date().toISOString()}] Scraper [${name}] started`);
       try {
-        const { triaged, factChecked } = await analyzeNewTitles();
-        console.log(
-          `✅ Startup analysis done: triaged ${triaged}, fact-checked ${factChecked}`,
-        );
+        await runPlatformScraper(name, scraper);
       } catch (err) {
-        console.error("❌ Startup analysis failed:", err);
+        console.error(`❌ Scraper [${name}] failed:`, err);
       }
-    } else {
-      console.log("✅ No pending analysis work, all caught up");
-    }
-    return;
-  })();
+    });
+  }
 
-  cron.schedule(config.CRON_SCHEDULE, runScrapeAndAnalysis);
+  // AI analysis cron (runs for all enabled platforms)
+  const analysisCron = appConfig.ai.analysisCron;
+  console.log(`  🤖 AI analysis cron: "${analysisCron}"`);
+  cron.schedule(analysisCron, async () => {
+    console.log(`\n🤖 [${new Date().toISOString()}] AI analysis started`);
+    try {
+      const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+      const { triaged, factChecked } = await runAllAnalysis(platforms);
+      console.log(`✅ AI analysis done: triaged ${triaged}, fact-checked ${factChecked}`);
+    } catch (err) {
+      console.error("❌ AI analysis failed:", err);
+    }
+  });
+
+  // Startup check
+  void checkStartup();
 }

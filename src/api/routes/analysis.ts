@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { desc } from "drizzle-orm";
 import { db, schema } from "../../db";
-import { analyzeNewTitles, phaseOneTriage, phaseTwoFactCheck } from "../../ai/analyzer";
-import { runScraper } from "../../scraper";
+import { appConfig, getEnabledPlatforms } from "../../config";
+import { runAllAnalysis } from "../../ai/analyzer";
+import { createScraper, runPlatformScraper } from "../../scraper";
 
 const app = new Hono();
 
@@ -21,30 +22,35 @@ app.get("/", async (c) => {
 });
 
 app.post("/trigger", async (c) => {
-  const { triaged, factChecked } = await analyzeNewTitles();
+  const enabledPlatforms = getEnabledPlatforms();
+  const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+  const { triaged, factChecked } = await runAllAnalysis(platforms);
   return c.json({
-    message: `Phase 1: triaged ${triaged}, Phase 2: fact-checked ${factChecked}`,
+    message: `Triaged ${triaged}, fact-checked ${factChecked}`,
     triaged,
     factChecked,
   });
 });
 
-app.post("/trigger/triage", async (c) => {
-  const triaged = await phaseOneTriage();
-  return c.json({ message: `Phase 1: triaged ${triaged} titles`, triaged });
-});
-
-app.post("/trigger/factcheck", async (c) => {
-  const factChecked = await phaseTwoFactCheck();
-  return c.json({ message: `Phase 2: fact-checked ${factChecked} titles`, factChecked });
-});
-
 app.post("/scrape", async (c) => {
-  const scraped = await runScraper();
-  const { triaged, factChecked } = await analyzeNewTitles();
+  const enabledPlatforms = getEnabledPlatforms();
+
+  let totalScraped = 0;
+  for (const [name, cfg] of enabledPlatforms) {
+    try {
+      const scraper = createScraper(name, cfg.scraper);
+      totalScraped += await runPlatformScraper(name, scraper);
+    } catch (err) {
+      console.error(`❌ Scrape failed [${name}]:`, err);
+    }
+  }
+
+  const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+  const { triaged, factChecked } = await runAllAnalysis(platforms);
+
   return c.json({
-    message: `Scraped ${scraped}, triaged ${triaged}, fact-checked ${factChecked}`,
-    scraped,
+    message: `Scraped ${totalScraped}, triaged ${triaged}, fact-checked ${factChecked}`,
+    scraped: totalScraped,
     triaged,
     factChecked,
   });
