@@ -233,6 +233,9 @@ class DoubaoProvider implements AIProvider {
   ): Promise<string> {
     const body: Record<string, unknown> = {
       model: this.modelName,
+      temperature: 0.2,
+      top_p: 0.9,
+      max_output_tokens: 2048,
       input: [
         {
           role: "system",
