@@ -195,6 +195,12 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
                 查看原始链接
               </a>
             )}
+            {(item.analysis?.deepAiModel ?? item.analysis?.aiModel) && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                <strong>鉴瓜师：</strong>
+                {item.analysis?.deepAiModel ?? item.analysis?.aiModel}
+              </p>
+            )}
           </div>
         )}
       </CardContent>
