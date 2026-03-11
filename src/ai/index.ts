@@ -148,7 +148,6 @@ class MiniMaxProvider implements AIProvider {
         ],
         stream: false,
         temperature: 0.2,
-        top_p: 0.9,
         max_completion_tokens: 2048,
       }),
     });

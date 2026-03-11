@@ -1,4 +1,4 @@
-import { Moon, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHotSearches, getPlatforms, getTopHighlights, getVisitStats} from "@/lib/api";
 import type { HotSearchItem, Platform } from "@/lib/types";
@@ -41,6 +41,7 @@ export default function App() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState(detectTheme);
+  const [isLabOpen, setIsLabOpen] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [visitCount, setVisitCount] = useState<number | null>(null);
 
@@ -48,6 +49,15 @@ export default function App() {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("melon-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!isLabOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [isLabOpen]);
 
   useEffect(() => {
     void getPlatforms()
@@ -203,7 +213,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
+      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px] lg:items-start">
         <section className="space-y-4">
           {highlights.length > 0 && (
             <div className="space-y-3">
@@ -286,10 +296,41 @@ export default function App() {
           )}
         </section>
 
-        <aside className="lg:sticky lg:top-24 lg:h-fit">
+        <aside className="hidden lg:block mt-8">
           <EvidenceLab items={items} platforms={platforms} visitCount={visitCount} />
         </aside>
       </main>
+
+      <button
+        type="button"
+        onClick={() => setIsLabOpen(true)}
+        className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-1 rounded-full bg-detective-green px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:opacity-90 lg:hidden"
+      >
+        <Menu size={16} />
+        瓜田菜单
+      </button>
+
+      {isLabOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setIsLabOpen(false)}>
+          <div
+            className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">瓜田侧栏</p>
+              <button
+                type="button"
+                onClick={() => setIsLabOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label="关闭侧栏"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <EvidenceLab items={items} platforms={platforms} visitCount={visitCount} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
