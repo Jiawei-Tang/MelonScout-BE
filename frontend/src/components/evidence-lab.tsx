@@ -1,4 +1,4 @@
-import { Activity, BrainCircuit, Flame, ShieldAlert } from "lucide-react";
+import { Activity, BrainCircuit, Flame, ShieldAlert, Star } from "lucide-react";
 import type { HotSearchItem, Platform } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui";
 
@@ -64,7 +64,7 @@ export function EvidenceLab({ items, platforms, visitCount }: EvidenceLabProps) 
         <CardContent className="pt-0">
           <div className="flex flex-wrap gap-2">
             {words.length ? (
-              words.map(([word, count]) => (
+              words.slice(0, 10).map(([word, count]) => (
                 <span
                   key={word}
                   className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-100"
@@ -115,6 +115,35 @@ export function EvidenceLab({ items, platforms, visitCount }: EvidenceLabProps) 
             当前鉴瓜师：{activeModel(items)}
           </p>
           <p className="text-xs text-slate-500">后端每次巡查会同步更新热搜和 AI 分析结果。</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
+            给瓜田伯伯买只瓜
+          </h2>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0 text-sm">
+          <p className="text-xs text-slate-500">如果你觉得瓜田侦探有用，可以请伯伯买只瓜支持项目继续成长。</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.alert("谢谢金主爸爸，暂时还未开通支付，如果方便请去 GitHub 点个 Star 吧。")}
+              className="rounded-md bg-detective-green px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+            >
+              给伯伯买只瓜
+            </button>
+            <a
+              href="https://github.com/Jiawei-Tang/MelonScout-BE"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-detective-green hover:text-detective-green dark:border-slate-700 dark:text-slate-200"
+            >
+              <Star size={14} />
+              去 GitHub 点个 Star
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
