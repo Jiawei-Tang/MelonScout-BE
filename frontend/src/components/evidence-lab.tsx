@@ -112,7 +112,7 @@ export function EvidenceLab({ items, platforms, visitCount }: EvidenceLabProps) 
           </p>
           <p className="flex items-center gap-1">
             <BrainCircuit size={14} className="text-detective-green" />
-            当前模型：{activeModel(items)}
+            当前鉴瓜师：{activeModel(items)}
           </p>
           <p className="text-xs text-slate-500">后端每次巡查会同步更新热搜和 AI 分析结果。</p>
         </CardContent>
