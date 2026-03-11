@@ -1,10 +1,9 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHotSearches, getPlatforms, getTopHighlights, getVisitStats} from "@/lib/api";
 import type { HotSearchItem, Platform } from "@/lib/types";
 import { MelonCard } from "@/components/melon-card";
 import { EvidenceLab } from "@/components/evidence-lab";
-import { TopHighlights } from "@/components/top-highlights";
 
 type PlatformFilter = "all" | number;
 const PAGE_SIZE = 20;
@@ -30,10 +29,12 @@ function Logo() {
 export default function App() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [items, setItems] = useState<HotSearchItem[]>([]);
-  const [highlights, setHighlights] = useState<Array<HotSearchItem & { compositeScore: number }>>([]);
+  const [highlights, setHighlights] = useState<HotSearchItem[]>([]);
   const [filter, setFilter] = useState<PlatformFilter>("all");
   const [onlyAnalyzed, setOnlyAnalyzed] = useState(false);
   const [onlyClickbait, setOnlyClickbait] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -135,11 +136,23 @@ export default function App() {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchKeyword(searchInput.trim().toLowerCase());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const filteredItems = useMemo(() => {
+    if (!searchKeyword) return items;
+    return items.filter((item) => item.title.toLowerCase().includes(searchKeyword));
+  }, [items, searchKeyword]);
+
   const stats = useMemo(() => {
-    const inspected = items.length;
-    const clickbait = items.filter((item) => (item.analysis?.score ?? 0) >= 51 || item.analysis?.isClickbait).length;
+    const inspected = filteredItems.length;
+    const clickbait = filteredItems.filter((item) => (item.analysis?.score ?? 0) >= 51 || item.analysis?.isClickbait).length;
     return { inspected, clickbait };
-  }, [items]);
+  }, [filteredItems]);
 
   return (
     <div className="min-h-screen">
@@ -192,10 +205,39 @@ export default function App() {
 
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
         <section className="space-y-4">
-          <TopHighlights items={highlights} platforms={platforms} />
+          {highlights.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-detective-green">重点卷宗 Top 3（最近 7 天）</p>
+              {highlights.map((item) => {
+                const platformLabel = platforms.find((p) => p.id === item.platformId)?.displayName ?? `平台${item.platformId}`;
+                return <MelonCard key={`highlight-${item.id}`} item={item} platformLabel={platformLabel} />;
+              })}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-sm text-slate-600 dark:text-slate-300">列表窗口：最近 {QUERY_DAYS} 天</p>
+            <div className="flex flex-1 items-center gap-2">
+              <p className="shrink-0 text-sm text-slate-600 dark:text-slate-300">列表窗口：最近 {QUERY_DAYS} 天</p>
+              <div className="relative w-full max-w-xs">
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="你在挑哪只瓜？"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-9 text-sm text-slate-700 outline-none ring-detective-green/30 placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchInput("")}
+                    className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    aria-label="清空"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -230,11 +272,13 @@ export default function App() {
           )}
           {!loading &&
             !error &&
-            items.map((item) => {
+            filteredItems.map((item) => {
               const platformLabel = platforms.find((p) => p.id === item.platformId)?.displayName ?? `平台${item.platformId}`;
               return <MelonCard key={item.id} item={item} platformLabel={platformLabel} />;
             })}
-          {!loading && !error && items.length === 0 && <p className="text-sm text-slate-500">暂无热搜数据。</p>}
+          {!loading && !error && filteredItems.length === 0 && (
+            <p className="text-sm text-slate-500">{searchKeyword ? "没有匹配的热搜结果。" : "暂无热搜数据。"}</p>
+          )}
           {!loading && !error && (
             <div ref={loadMoreRef} className="py-3 text-center text-xs text-slate-500">
               {loadingMore ? "正在加载更多卷宗..." : hasMore ? "下滑自动加载更多" : "最近 7 天的卷宗已加载完成"}
