@@ -19,6 +19,12 @@ async function seed() {
       .onConflictDoNothing({ target: schema.platforms.name });
   }
 
+  const visitStats = await db.select().from(schema.visitStats).limit(1);
+  if (visitStats.length === 0) {
+    await db.insert(schema.visitStats).values({ count: 0 });
+    console.log("✅ Initialized visit_stats");
+  }
+
   console.log(`✅ Seeded ${defaultPlatforms.length} platforms`);
   process.exit(0);
 }
