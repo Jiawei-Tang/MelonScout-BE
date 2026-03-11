@@ -158,10 +158,9 @@ class MiniMaxProvider implements AIProvider {
       choices?: Array<{ message: { content: string } }>;
     };
 
-    // MiniMax 在 HTTP 200 时也会用 base_resp 表示业务错误（如 2049 = invalid api key）
     if (json.base_resp && json.base_resp.status_code !== 0) {
       throw new Error(
-        `MiniMax API error ${json.base_resp.status_code}: ${json.base_resp.status_msg}`
+        `MiniMax API error ${json.base_resp.status_code}: ${json.base_resp.status_msg}`,
       );
     }
 
@@ -183,6 +182,102 @@ class MiniMaxProvider implements AIProvider {
 
   async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
     const text = await this.chat(FACT_CHECK_SYSTEM_PROMPT, buildFactCheckPrompt(title, category, triageReason));
+    return parseJSON<FactCheckResult>(text);
+  }
+}
+
+// ── Doubao (豆包 / 火山方舟) ──────────────────────────────────────
+
+interface DoubaoResponseOutput {
+  type: string;
+  role?: string;
+  content?: Array<{ type: string; text?: string }>;
+}
+
+interface DoubaoResponse {
+  id: string;
+  output: DoubaoResponseOutput[];
+  error?: { code: string; message: string };
+}
+
+class DoubaoProvider implements AIProvider {
+  readonly modelName: string;
+  private apiKey: string;
+  private baseUrl = "https://ark.cn-beijing.volces.com/api/v3/responses";
+
+  constructor(apiKey: string, model: string) {
+    this.apiKey = apiKey;
+    this.modelName = model;
+  }
+
+  private extractText(resp: DoubaoResponse): string {
+    if (resp.error) {
+      throw new Error(`Doubao API error: ${resp.error.code} ${resp.error.message}`);
+    }
+    for (const item of resp.output) {
+      if (item.type === "message" && item.content) {
+        for (const block of item.content) {
+          if (block.type === "output_text" && block.text) {
+            return block.text;
+          }
+        }
+      }
+    }
+    throw new Error(`Doubao API: no text in response: ${JSON.stringify(resp)}`);
+  }
+
+  private async call(
+    systemPrompt: string,
+    userPrompt: string,
+    useWebSearch: boolean,
+  ): Promise<string> {
+    const body: Record<string, unknown> = {
+      model: this.modelName,
+      input: [
+        {
+          role: "system",
+          content: [{ type: "input_text", text: systemPrompt }],
+        },
+        {
+          role: "user",
+          content: [{ type: "input_text", text: userPrompt }],
+        },
+      ],
+    };
+
+    if (useWebSearch) {
+      body.tools = [{ type: "web_search", max_keyword: 3 }];
+    }
+
+    const resp = await fetch(this.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Doubao API HTTP ${resp.status}: ${text}`);
+    }
+
+    const json = (await resp.json()) as DoubaoResponse;
+    return this.extractText(json);
+  }
+
+  async triage(title: string): Promise<TriageResult> {
+    const text = await this.call(TRIAGE_SYSTEM_PROMPT, buildTriagePrompt(title), false);
+    return parseJSON<TriageResult>(text);
+  }
+
+  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
+    const text = await this.call(
+      FACT_CHECK_SYSTEM_PROMPT,
+      buildFactCheckPrompt(title, category, triageReason),
+      true,
+    );
     return parseJSON<FactCheckResult>(text);
   }
 }
@@ -217,7 +312,7 @@ export class MockAIProvider implements AIProvider {
     return { needsFactCheck: false, triageReason: "标题表述正常，无需特别核查", category: "normal" };
   }
 
-  async factCheck(title: string, category: string, triageReason: string): Promise<FactCheckResult> {
+  async factCheck(title: string, category: string, _triageReason: string): Promise<FactCheckResult> {
     const isClickbait = MockAIProvider.FACT_CHECK_KEYWORDS.some((kw) => title.includes(kw));
     const isCorporate = category === "corporate_claim";
     const isScandal = category === "celebrity_scandal";
@@ -305,6 +400,15 @@ function createProvider(): AIProvider {
         return new MockAIProvider();
       }
       return new MiniMaxProvider(key);
+    }
+
+    case "doubao": {
+      const key = config.DOUBAO_API_KEY?.trim();
+      if (!key) {
+        console.warn("⚠️ DOUBAO_API_KEY not set, falling back to mock AI provider");
+        return new MockAIProvider();
+      }
+      return new DoubaoProvider(key, config.DOUBAO_MODEL);
     }
 
     default:
