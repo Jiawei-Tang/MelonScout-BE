@@ -4,11 +4,13 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
   // AI
-  AI_PROVIDER: z.enum(["google", "openai", "deepseek", "minimax"]).default("google"),
+  AI_PROVIDER: z.enum(["google", "openai", "deepseek", "minimax", "doubao"]).default("google"),
   GOOGLE_AI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
   MINIMAX_API_KEY: z.string().optional(),
+  DOUBAO_API_KEY: z.string().optional(),
+  DOUBAO_MODEL: z.string().default("doubao-seed-2-0-pro-260215"),
 
   // Scraper source: "cheerio" | "placeholder" | "tianapi"
   SCRAPER_SOURCE: z.enum(["cheerio", "placeholder", "tianapi"]).default("placeholder"),
