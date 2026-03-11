@@ -23,6 +23,15 @@ function buildSources(): ScraperSource[] {
 
 const sources: ScraperSource[] = buildSources();
 
+/** Parse heatValue string (e.g. "123万", "1.2亿") to numeric for comparison. */
+function parseHeatValue(heatValue: string | null | undefined): number {
+  if (heatValue == null || heatValue.trim() === "") return 0;
+  const num = parseFloat(heatValue.replace(/[^0-9.]/g, "")) || 0;
+  if (heatValue.includes("亿")) return num * 100_000_000;
+  if (heatValue.includes("万")) return num * 10_000;
+  return num;
+}
+
 export function registerSource(source: ScraperSource) {
   sources.push(source);
 }
@@ -56,6 +65,11 @@ export async function runScraper(): Promise<number> {
         });
 
         if (existing) {
+          const existingHeat = parseHeatValue(existing.heatValue);
+          const newHeat = parseHeatValue(item.heatValue);
+          if (newHeat < existingHeat) {
+            continue;
+          }
           await db
             .update(schema.hotSearches)
             .set({
