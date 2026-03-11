@@ -31,7 +31,8 @@ jobs:
             fi
           fi
 
-      - name: Deploy via SSH
+      - name: Deploy (normal)
+        if: steps.check.outputs.db_release != 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -43,20 +44,39 @@ jobs:
             git checkout release
             git pull origin release
             docker compose up -d --build
-            echo "✅ Containers rebuilt and started"
+            echo "✅ Deploy complete"
 
-      - name: Run DB migrations (db-release only)
+      - name: Deploy (db-release)
         if: steps.check.outputs.db_release == 'true'
         uses: appleboy/ssh-action@v1
+        timeout-minutes: 10
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 8m
           script: |
             cd ~/MelonScout-BE
+            git fetch origin release
+            git checkout release
+            git pull origin release
+
+            echo "🛑 Stopping backend..."
+            docker compose stop backend
+
+            echo "📦 Rebuilding images..."
+            docker compose build
+
+            echo "🐘 Ensuring postgres is up..."
+            docker compose up -d postgres
+            sleep 3
+
             echo "🔄 Running database migrations..."
-            docker compose exec -T backend bunx drizzle-kit push --force
-            echo "✅ DB migrations complete"
+            docker compose run --rm backend bunx drizzle-kit push --force
+
+            echo "🚀 Starting all services..."
+            docker compose up -d
+            echo "✅ DB release deploy complete"
 
       - name: Health check
         uses: appleboy/ssh-action@v1
@@ -65,12 +85,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            sleep 5
+            sleep 8
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
             if [ "$STATUS" = "200" ]; then
               echo "✅ Health check passed"
             else
               echo "❌ Health check failed (HTTP $STATUS)"
-              docker compose -f ~/MelonScout-BE/docker-compose.yml logs --tail=20 backend
+              docker compose -f ~/MelonScout-BE/docker-compose.yml logs --tail=30 backend
               exit 1
             fi
