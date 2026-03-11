@@ -52,3 +52,5 @@ export const aiAnalysis = pgTable("ai_analysis", {
   deepAiModel: varchar("deep_ai_model", { length: 50 }),
   deepAnalyzedAt: timestamp("deep_analyzed_at"),
 });
+
+export * from "./visitStats";

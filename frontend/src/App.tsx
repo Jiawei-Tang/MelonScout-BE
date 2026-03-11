@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getHotSearches, getPlatforms, getTopHighlights } from "@/lib/api";
+import { getHotSearches, getPlatforms, getTopHighlights, getVisitStats} from "@/lib/api";
 import type { HotSearchItem, Platform } from "@/lib/types";
 import { MelonCard } from "@/components/melon-card";
 import { EvidenceLab } from "@/components/evidence-lab";
@@ -41,6 +41,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState(detectTheme);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [visitCount, setVisitCount] = useState<number | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -57,6 +58,21 @@ export default function App() {
     void getTopHighlights()
       .then((res) => setHighlights(res.data))
       .catch((err: Error) => setError(err.message));
+  }, []);
+
+  // 访问量统计逻辑
+  useEffect(() => {
+    const key = "melon-visit-stats-ts";
+    const now = Date.now();
+    const last = Number(localStorage.getItem(key) || 0);
+    if (now - last > 3 * 60 * 1000) {
+      getVisitStats(true).then((data) => {
+        setVisitCount(data.count);
+        localStorage.setItem(key, String(now));
+      }).catch(() => setVisitCount(null));
+    } else {
+      getVisitStats(false).then((data) => setVisitCount(data.count)).catch(() => setVisitCount(null));
+    }
   }, []);
 
   useEffect(() => {
@@ -227,7 +243,7 @@ export default function App() {
         </section>
 
         <aside className="lg:sticky lg:top-24 lg:h-fit">
-          <EvidenceLab items={items} platforms={platforms} />
+          <EvidenceLab items={items} platforms={platforms} visitCount={visitCount} />
         </aside>
       </main>
     </div>

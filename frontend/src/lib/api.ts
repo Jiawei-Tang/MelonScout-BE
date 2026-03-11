@@ -1,6 +1,12 @@
 import type { HighlightsResponse, HotSearchResponse, PlatformsResponse } from "./types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+interface ImportMeta {
+  readonly env: {
+    readonly VITE_API_BASE_URL?: string;
+  };
+}
+
+const API_BASE_URL = (import.meta as unknown as ImportMeta).env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
 async function requestJSON<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
@@ -56,4 +62,10 @@ export function toCNTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+export async function getVisitStats(inc: boolean = true) {
+  const response = await fetch(`${API_BASE_URL}/api/visit-stats?inc=${inc ? 1 : 0}`);
+  if (!response.ok) throw new Error("Failed to fetch visit stats");
+  return response.json() as Promise<{ count: number }>;
 }

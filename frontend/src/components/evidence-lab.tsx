@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui";
 interface EvidenceLabProps {
   items: HotSearchItem[];
   platforms: Platform[];
+  visitCount: number | null;
 }
 
 function extractHotWords(items: HotSearchItem[]) {
@@ -47,7 +48,7 @@ function activeModel(items: HotSearchItem[]) {
   return "mock / 未上报";
 }
 
-export function EvidenceLab({ items, platforms }: EvidenceLabProps) {
+export function EvidenceLab({ items, platforms, visitCount }: EvidenceLabProps) {
   const words = extractHotWords(items);
   const risks = topRiskPlatforms(items, platforms);
 
@@ -101,11 +102,14 @@ export function EvidenceLab({ items, platforms }: EvidenceLabProps) {
       <Card>
         <CardHeader className="pb-2">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
-            <Activity size={16} className="text-emerald-500" />
             项目动态
           </h2>
         </CardHeader>
         <CardContent className="space-y-2 pt-0 text-sm">
+          <p className="flex items-center gap-1">
+            <Activity size={16} className="text-emerald-500" />
+            <span className="text-xs text-slate-500">总访问量：{visitCount === null ? "--" : visitCount.toLocaleString("zh-CN")}</span>
+          </p>
           <p className="flex items-center gap-1">
             <BrainCircuit size={14} className="text-detective-green" />
             当前模型：{activeModel(items)}
