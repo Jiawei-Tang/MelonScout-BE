@@ -31,6 +31,11 @@ export const appConfigSchema = z.object({
     model: z.string().optional(),
     analysisCron: z.string(),
   }),
+  logging: z.object({
+    dir: z.string().default("./logs"),
+    dirEnv: z.string().optional(),
+    level: z.enum(["info", "warn", "error"]).default("info"),
+  }).default({ dir: "./logs", level: "info" }),
   platforms: z.record(z.string(), platformConfigSchema),
   startup: z.object({
     fetchThresholdHours: z.number().default(6),

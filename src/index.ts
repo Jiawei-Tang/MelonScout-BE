@@ -1,6 +1,9 @@
+import { patchConsole } from "./logger";
 import api from "./api";
 import { appConfig } from "./config";
 import { startCronJobs } from "./cron";
+
+patchConsole();
 
 console.log("🍉 MelonScout Backend starting...");
 

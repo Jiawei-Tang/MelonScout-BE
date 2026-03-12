@@ -5,6 +5,11 @@
   "database": {
     "urlEnv": "DATABASE_URL"
   },
+  "logging": {
+    "dir": "./logs",
+    "dirEnv": "LOG_DIR",
+    "level": "info"
+  },
   "ai": {
     "provider": "doubao",
     "apiKeyEnv": "DOUBAO_API_KEY",
