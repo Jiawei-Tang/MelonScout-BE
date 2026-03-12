@@ -3,33 +3,12 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
 import { appConfig, resolveEnv } from "../../config";
 import { createScraper } from "../../scraper";
-
-const INTERNAL_API_KEY_ENV = "INTERNAL_API_KEY";
-
-function requireInternal(c: { req: { header: (name: string) => string | undefined } }) {
-  const key = resolveEnv(INTERNAL_API_KEY_ENV);
-  if (!key) {
-    return {
-      allowed: false as const,
-      status: 503 as const,
-      body: { error: "Internal API not configured (set INTERNAL_API_KEY)" },
-    };
-  }
-  const provided = c.req.header("X-Internal-Key")?.trim();
-  if (provided !== key) {
-    return { allowed: false as const, status: 403 as const, body: { error: "Forbidden" } };
-  }
-  return { allowed: true as const };
-}
+import { internalOnly } from "../middleware/internalOnly";
 
 const app = new Hono();
+app.use("*", internalOnly());
 
 app.get("/", async (c) => {
-  const auth = requireInternal(c);
-  if (!auth.allowed) {
-    return c.json(auth.body, auth.status);
-  }
-
   const baiduCfg = appConfig.platforms["baidu"];
   if (!baiduCfg) {
     return c.json({ error: "Platform 'baidu' not configured" }, 503);
