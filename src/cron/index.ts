@@ -29,6 +29,10 @@ async function checkStartup() {
     for (const [name, platformCfg] of enabledPlatforms) {
       try {
         const scraper = createScraper(name, platformCfg.scraper);
+        if (!scraper) {
+          console.warn(`⚠️ Scraper not found for platform "${name}"`);
+          continue;
+        }
         await runPlatformScraper(name, scraper);
       } catch (err) {
         console.error(`❌ Startup scrape failed [${name}]:`, err);
@@ -74,6 +78,9 @@ export function startCronJobs() {
 
   // Per-platform scraper crons
   for (const [name, platformCfg] of enabledPlatforms) {
+    if(name === "weibo") {
+      continue;
+    }
     const scraper = createScraper(name, platformCfg.scraper);
     const cronExpr = platformCfg.scraper.cron;
 
@@ -81,7 +88,9 @@ export function startCronJobs() {
     cron.schedule(cronExpr, async () => {
       console.log(`\n🔄 [${new Date().toISOString()}] Scraper [${name}] started`);
       try {
-        await runPlatformScraper(name, scraper);
+        if (scraper) {
+          await runPlatformScraper(name, scraper);
+        }
       } catch (err) {
         console.error(`❌ Scraper [${name}] failed:`, err);
       }

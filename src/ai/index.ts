@@ -197,6 +197,8 @@ interface DoubaoResponse {
   id: string;
   output: DoubaoResponseOutput[];
   error?: { code: string; message: string };
+  status?: string;
+  incomplete_details?: { reason?: string };
 }
 
 class DoubaoProvider implements AIProvider {
@@ -222,6 +224,12 @@ class DoubaoProvider implements AIProvider {
         }
       }
     }
+    if (resp.status === "incomplete" && resp.incomplete_details?.reason === "length") {
+      throw new Error(
+        "Doubao API: response was truncated (max_output_tokens reached). " +
+          "Reasoning used all tokens; increase max_output_tokens so the model can output the final JSON.",
+      );
+    }
     throw new Error(`Doubao API: no text in response: ${JSON.stringify(resp)}`);
   }
 
@@ -230,11 +238,13 @@ class DoubaoProvider implements AIProvider {
     userPrompt: string,
     useWebSearch: boolean,
   ): Promise<string> {
+    // 火山方舟 API 不支持关闭 reasoning 返回，思考类模型会先输出 reasoning 再输出 message。
+    // 只能通过调大 max_output_tokens 保证 reasoning + 最终 JSON 不被截断。
     const body: Record<string, unknown> = {
       model: this.modelName,
       temperature: 0.2,
       top_p: 0.9,
-      max_output_tokens: 2048,
+      max_output_tokens: 16384,
       input: [
         {
           role: "system",

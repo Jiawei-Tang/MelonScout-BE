@@ -46,7 +46,8 @@
       "displayName": "百度",
       "enabled": false,
       "scraper": {
-        "type": "placeholder",
+        "type": "tianapi",
+        "apiKeyEnv": "TIANAPI_API_KEY",
         "cron": "0 */12 * * *"
       },
       "analysis": {
@@ -56,9 +57,10 @@
     },
     "douyin": {
       "displayName": "抖音",
-      "enabled": false,
+      "enabled": true,
       "scraper": {
-        "type": "placeholder",
+        "type": "tianapi",
+        "apiKeyEnv": "TIANAPI_API_KEY",
         "cron": "0 */12 * * *"
       },
       "analysis": {

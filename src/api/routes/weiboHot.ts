@@ -2,11 +2,30 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
 import { appConfig, resolveEnv } from "../../config";
-import { createScraper, runPlatformScraper } from "../../scraper";
+import { createScraper } from "../../scraper";
+
+const INTERNAL_API_KEY_ENV = "INTERNAL_API_KEY";
+
+function requireInternal(c: { req: { header: (name: string) => string | undefined } }) {
+  const key = resolveEnv(INTERNAL_API_KEY_ENV);
+  if (!key) {
+    return { allowed: false as const, status: 503 as const, body: { error: "Internal API not configured (set INTERNAL_API_KEY)" } };
+  }
+  const provided = c.req.header("X-Internal-Key")?.trim();
+  if (provided !== key) {
+    return { allowed: false as const, status: 403 as const, body: { error: "Forbidden" } };
+  }
+  return { allowed: true as const };
+}
 
 const app = new Hono();
 
 app.get("/", async (c) => {
+  const auth = requireInternal(c);
+  if (!auth.allowed) {
+    return c.json(auth.body, auth.status);
+  }
+
   const weiboCfg = appConfig.platforms["weibo"];
   if (!weiboCfg) {
     return c.json({ error: "Platform 'weibo' not configured" }, 503);
@@ -18,6 +37,9 @@ app.get("/", async (c) => {
   }
 
   const scraper = createScraper("weibo", weiboCfg.scraper);
+  if (!scraper) {
+    return c.json({ error: "Scraper not found" }, 503);
+  }
   const items = await scraper.fetch();
 
   const platform = await db.query.platforms.findFirst({

@@ -176,7 +176,6 @@ export async function runAnalysisForPlatform(
 }
 
 // ── Run analysis for all enabled platforms ──────────────────────────
-
 export async function runAllAnalysis(
   platforms: Array<{ name: string; analysis: AnalysisConfig }>,
 ): Promise<{ triaged: number; factChecked: number }> {

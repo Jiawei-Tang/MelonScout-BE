@@ -39,6 +39,10 @@ app.post("/scrape", async (c) => {
   for (const [name, cfg] of enabledPlatforms) {
     try {
       const scraper = createScraper(name, cfg.scraper);
+      if (!scraper) {
+        console.warn(`⚠️ Scraper not found for platform "${name}"`);
+        continue;
+      }
       totalScraped += await runPlatformScraper(name, scraper);
     } catch (err) {
       console.error(`❌ Scrape failed [${name}]:`, err);
