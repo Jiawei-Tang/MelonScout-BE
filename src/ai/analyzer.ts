@@ -1,7 +1,7 @@
 import { eq, isNull, desc, and } from "drizzle-orm";
 import { db, schema } from "../db";
 import { aiProvider } from "./index";
-import { config } from "../config";
+import type { AnalysisConfig } from "../config/schema";
 
 function lowRiskScoreByCategory(category: string | null | undefined): number {
   switch (category) {
@@ -20,12 +20,13 @@ function lowRiskReason(triageReason: string | null | undefined): string {
   return triageReason?.trim() || "分诊判断为常规话题，无需进一步事实核查。";
 }
 
-// ── Phase 1: Triage — 判断是否需要事实核查 ─────────────────────────
-//
-// For each unanalyzed title (filtered by top-N), ask AI: "Does this need
-// fact-checking?" Stores needsFactCheck, triageReason, category.
+// ── Phase 1: Triage ────────────────────────────────────────────────
 
-export async function phaseOneTriage(): Promise<number> {
+export async function phaseOneTriage(
+  platformName: string,
+  platformId: number,
+  topN: number,
+): Promise<number> {
   const unanalyzed = await db
     .select({
       id: schema.hotSearches.id,
@@ -34,20 +35,26 @@ export async function phaseOneTriage(): Promise<number> {
     })
     .from(schema.hotSearches)
     .leftJoin(schema.aiAnalysis, eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId))
-    .where(isNull(schema.aiAnalysis.id))
+    .where(
+      and(
+        eq(schema.hotSearches.platformId, platformId),
+        isNull(schema.aiAnalysis.id),
+      ),
+    )
     .orderBy(desc(schema.hotSearches.createdAt));
 
-  const topN = config.ANALYSIS_TOP_N;
   const candidates = topN > 0
     ? unanalyzed.filter((item) => item.rank !== null && item.rank <= topN)
     : unanalyzed;
 
+  if (candidates.length === 0) return 0;
+
   const skipped = unanalyzed.length - candidates.length;
   if (skipped > 0) {
-    console.log(`🔍 Phase 1: ${candidates.length} from ${unanalyzed.length} (top ${topN}, skipped ${skipped})`);
+    console.log(`🔍 [${platformName}] Triage: ${candidates.length}/${unanalyzed.length} (top ${topN})`);
   }
 
-  console.log(`🏥 Phase 1: Triaging ${candidates.length} titles with [${aiProvider.modelName}]...`);
+  console.log(`🏥 [${platformName}] Triaging ${candidates.length} titles with [${aiProvider.modelName}]...`);
 
   let triaged = 0;
   for (const item of candidates) {
@@ -66,56 +73,25 @@ export async function phaseOneTriage(): Promise<number> {
         verdict: result.needsFactCheck ? null : "初筛通过：该话题争议较低，当前无明显标题党风险。",
       });
 
-      const flag = result.needsFactCheck ? "🔴 需核查" : "🟢 正常";
+      const flag = result.needsFactCheck ? "🔴" : "🟢";
       console.log(`  ${flag} [${result.category}] "${item.title}"`);
       triaged++;
     } catch (err) {
-      console.error(`❌ Phase 1 triage failed for "${item.title}":`, err);
+      console.error(`❌ Triage failed for "${item.title}":`, err);
     }
   }
 
-  console.log(`✅ Phase 1 complete: ${triaged}/${candidates.length} titles triaged`);
+  console.log(`✅ [${platformName}] Triage done: ${triaged}/${candidates.length}`);
   return triaged;
 }
 
-export async function backfillLowRiskScores(): Promise<number> {
-  const candidates = await db
-    .select({
-      id: schema.aiAnalysis.id,
-      category: schema.aiAnalysis.category,
-      triageReason: schema.aiAnalysis.triageReason
-    })
-    .from(schema.aiAnalysis)
-    .where(and(eq(schema.aiAnalysis.needsFactCheck, false), isNull(schema.aiAnalysis.score)));
+// ── Phase 2: Fact-check ────────────────────────────────────────────
 
-  if (candidates.length === 0) return 0;
-
-  for (const item of candidates) {
-    await db
-      .update(schema.aiAnalysis)
-      .set({
-        isClickbait: false,
-        score: lowRiskScoreByCategory(item.category),
-        reason: lowRiskReason(item.triageReason),
-        verdict: "初筛通过：该话题争议较低，当前无明显标题党风险。",
-        updatedAt: new Date()
-      })
-      .where(eq(schema.aiAnalysis.id, item.id));
-  }
-
-  console.log(`🧹 Backfilled low-risk score for ${candidates.length} AI records`);
-  return candidates.length;
-}
-
-// ── Phase 2: Fact-check + Score ────────────────────────────────────
-//
-// Takes items where needsFactCheck=true AND not yet fact-checked,
-// limited to DEEP_ANALYSIS_MAX per batch. Runs thorough fact-check
-// and ALWAYS writes a score (even for items determined to be true).
-
-export async function phaseTwoFactCheck(): Promise<number> {
-  const maxItems = config.DEEP_ANALYSIS_MAX;
-
+export async function phaseTwoFactCheck(
+  platformName: string,
+  platformId: number,
+  maxItems: number,
+): Promise<number> {
   const candidates = await db
     .select({
       id: schema.aiAnalysis.id,
@@ -128,6 +104,7 @@ export async function phaseTwoFactCheck(): Promise<number> {
     .innerJoin(schema.hotSearches, eq(schema.aiAnalysis.hotSearchId, schema.hotSearches.id))
     .where(
       and(
+        eq(schema.hotSearches.platformId, platformId),
         eq(schema.aiAnalysis.needsFactCheck, true),
         isNull(schema.aiAnalysis.deepAnalyzedAt),
       ),
@@ -135,19 +112,16 @@ export async function phaseTwoFactCheck(): Promise<number> {
     .orderBy(desc(schema.aiAnalysis.updatedAt))
     .limit(maxItems);
 
-  if (candidates.length === 0) {
-    console.log("🔬 Phase 2: No items pending fact-check, skipping");
-    return 0;
-  }
+  if (candidates.length === 0) return 0;
 
   console.log(
-    `🔬 Phase 2: Fact-checking ${candidates.length} items (max ${maxItems}) with [${aiProvider.modelName}]...`,
+    `🔬 [${platformName}] Fact-checking ${candidates.length} items (max ${maxItems}) with [${aiProvider.modelName}]...`,
   );
 
   let checked = 0;
   for (const item of candidates) {
     try {
-      console.log(`  🔎 Checking: [${item.category}] "${item.title}"`);
+      console.log(`  🔎 [${item.category}] "${item.title}"`);
 
       const result = await aiProvider.factCheck(
         item.title,
@@ -173,19 +147,46 @@ export async function phaseTwoFactCheck(): Promise<number> {
       console.log(`    ${emoji} score=${result.score} "${result.verdict}"`);
       checked++;
     } catch (err) {
-      console.error(`❌ Phase 2 fact-check failed for "${item.title}":`, err);
+      console.error(`❌ Fact-check failed for "${item.title}":`, err);
     }
   }
 
-  console.log(`✅ Phase 2 complete: ${checked}/${candidates.length} items fact-checked`);
+  console.log(`✅ [${platformName}] Fact-check done: ${checked}/${candidates.length}`);
   return checked;
 }
 
-// ── Combined ───────────────────────────────────────────────────────
+// ── Run analysis for a specific platform ───────────────────────────
 
-export async function analyzeNewTitles(): Promise<{ triaged: number; factChecked: number }> {
-  const triaged = await phaseOneTriage();
-  await backfillLowRiskScores();
-  const factChecked = await phaseTwoFactCheck();
+export async function runAnalysisForPlatform(
+  platformName: string,
+  analysisConfig: AnalysisConfig,
+): Promise<{ triaged: number; factChecked: number }> {
+  const platform = await db.query.platforms.findFirst({
+    where: eq(schema.platforms.name, platformName),
+  });
+
+  if (!platform) {
+    console.warn(`⚠️ Platform "${platformName}" not found in DB, skipping analysis`);
+    return { triaged: 0, factChecked: 0 };
+  }
+
+  const triaged = await phaseOneTriage(platformName, platform.id, analysisConfig.topN);
+  const factChecked = await phaseTwoFactCheck(platformName, platform.id, analysisConfig.deepAnalysisMax);
   return { triaged, factChecked };
+}
+
+// ── Run analysis for all enabled platforms ──────────────────────────
+export async function runAllAnalysis(
+  platforms: Array<{ name: string; analysis: AnalysisConfig }>,
+): Promise<{ triaged: number; factChecked: number }> {
+  let totalTriaged = 0;
+  let totalFactChecked = 0;
+
+  for (const { name, analysis } of platforms) {
+    const { triaged, factChecked } = await runAnalysisForPlatform(name, analysis);
+    totalTriaged += triaged;
+    totalFactChecked += factChecked;
+  }
+
+  return { triaged: totalTriaged, factChecked: totalFactChecked };
 }
