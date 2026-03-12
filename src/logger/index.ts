@@ -1,4 +1,4 @@
-import { mkdirSync, appendFileSync, existsSync } from "fs";
+import { mkdirSync, appendFileSync, existsSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { appConfig, resolveEnv } from "../config";
 
@@ -46,11 +46,15 @@ class Logger {
       }
       this.initialized = true;
       console.log(`📝 Logs → ${this.logDir}`);
+      cleanOldLogs(this.logDir, 7, 30);
+      setInterval(() => cleanOldLogs(this.logDir, 7, 30), 24 * 60 * 60 * 1000);
     } catch (err) {
       console.error(`⚠️ Failed to create log dir ${this.logDir}, falling back to ./logs`);
       this.logDir = "./logs";
       mkdirSync(this.logDir, { recursive: true });
       this.initialized = true;
+      cleanOldLogs(this.logDir, 7, 30);
+      setInterval(() => cleanOldLogs(this.logDir, 7, 30), 24 * 60 * 60 * 1000);
     }
   }
 
@@ -85,6 +89,30 @@ class Logger {
     console.error(...args);
     this.writeToFile("error", line);
   }
+}
+
+function cleanOldLogs(logDir: string, allRetainDays: number, errorRetainDays: number) {
+  try {
+    const files = readdirSync(logDir).filter((f) => f.endsWith(".log"));
+    const now = Date.now();
+
+    for (const file of files) {
+      const match = file.match(/^(?:error-)?(\d{4}-\d{2}-\d{2})\.log$/);
+      if (!match) continue;
+
+      const fileDate = new Date(match[1]).getTime();
+      if (isNaN(fileDate)) continue;
+
+      const ageDays = (now - fileDate) / (24 * 60 * 60 * 1000);
+      const isError = file.startsWith("error-");
+      const retain = isError ? errorRetainDays : allRetainDays;
+
+      if (ageDays > retain) {
+        unlinkSync(join(logDir, file));
+        console.log(`🗑️ Deleted old log: ${file} (${Math.floor(ageDays)}d old)`);
+      }
+    }
+  } catch {}
 }
 
 export const logger = new Logger();
