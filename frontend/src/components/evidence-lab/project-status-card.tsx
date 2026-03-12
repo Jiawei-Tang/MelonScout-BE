@@ -12,7 +12,7 @@ function activeModel(items: HotSearchItem[]) {
     if (item.analysis?.deepAiModel) return item.analysis.deepAiModel;
     if (item.analysis?.aiModel) return item.analysis.aiModel;
   }
-  return "mock / 未上报";
+  return "未上报";
 }
 
 export function ProjectStatusCard({ items, visitCount }: ProjectStatusCardProps) {

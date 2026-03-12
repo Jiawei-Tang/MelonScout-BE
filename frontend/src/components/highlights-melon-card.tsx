@@ -4,7 +4,7 @@ import type { HotSearchItem } from "@/lib/types";
 import { toCNTime, voteHotSearch } from "@/lib/api";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
 
-interface MelonCardProps {
+interface HighlightsMelonCardProps {
   item: HotSearchItem;
   platformLabel: string;
 }
@@ -36,7 +36,7 @@ function scoreTags(item: HotSearchItem): string[] {
   return tags;
 }
 
-export function MelonCard({ item, platformLabel }: MelonCardProps) {
+export function HighlightsMelonCard({ item, platformLabel }: HighlightsMelonCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [votes, setVotes] = useState({
     up: item.analysis?.upVotes ?? 0,
@@ -80,17 +80,14 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
     <Card className={`border-l-4 border-l-detective-green transition hover:shadow-melon ${expanded ? "melon-cut" : ""}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <Badge>
-            {platformLabel} · #{item.rank ?? "-"}
-          </Badge>
+          <h3 className="text-lg font-bold leading-snug text-slate-900 dark:text-slate-100">{item.title}</h3>
           <span className="text-xs text-slate-500 dark:text-slate-400">{toCNTime(item.createdAt)}</span>
         </div>
-        <h3 className="mt-3 text-lg font-bold leading-snug text-slate-900 dark:text-slate-100">{item.title}</h3>
       </CardHeader>
 
       <CardContent>
         <div
-          className={`flex items-start gap-3 rounded-lg p-3 ${
+          className={`flex items-start gap-3 rounded-lg px-3 py-2 ${
             isClickbait ? "bg-red-50 dark:bg-red-950/20" : "bg-emerald-50 dark:bg-emerald-950/20"
           }`}
         >
@@ -139,14 +136,19 @@ export function MelonCard({ item, platformLabel }: MelonCardProps) {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-detective-green dark:text-slate-300"
-          >
-            卷宗详情
-            <ChevronDown className={`transition ${expanded ? "rotate-180" : ""}`} size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-detective-green dark:text-slate-300"
+            >
+              卷宗详情
+              <ChevronDown className={`transition ${expanded ? "rotate-180" : ""}`} size={16} />
+            </button>
+            <Badge>
+              {platformLabel} · #{item.rank ?? "-"}
+            </Badge>
+          </div>
           <div className="flex items-center gap-2 text-xs">
             <button
               type="button"

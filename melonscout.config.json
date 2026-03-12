@@ -44,7 +44,7 @@
     },
     "baidu": {
       "displayName": "百度",
-      "enabled": false,
+      "enabled": true,
       "scraper": {
         "type": "tianapi",
         "apiKeyEnv": "TIANAPI_API_KEY",

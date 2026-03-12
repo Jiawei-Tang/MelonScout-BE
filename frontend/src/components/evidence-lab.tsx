@@ -16,7 +16,7 @@ export function EvidenceLab({ items, platforms, visitCount }: EvidenceLabProps) 
       <BulletinBoardCard />
       <ProjectStatusCard items={items} visitCount={visitCount} />
       <HotWordsCard items={items} />
-      <RiskPlatformsCard items={items} platforms={platforms} />
+      {/* <RiskPlatformsCard items={items} platforms={platforms} /> */}
     </div>
   );
 }

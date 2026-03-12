@@ -83,6 +83,7 @@ export function startCronJobs() {
     }
     const scraper = createScraper(name, platformCfg.scraper);
     const cronExpr = platformCfg.scraper.cron;
+    runPlatformScraper(name, scraper!);
 
     console.log(`  📡 [${name}] scraper cron: "${cronExpr}"`);
     cron.schedule(cronExpr, async () => {
