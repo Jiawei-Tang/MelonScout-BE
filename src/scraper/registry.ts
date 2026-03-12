@@ -3,6 +3,7 @@ import type { ScraperConfig } from "../config/schema";
 import { resolveEnv } from "../config";
 import { TianapiWeiboScraper } from "./sources/tianapi-weibo";
 import { TianapiDouyinScraper } from "./sources/tianapi-douyin";
+import { TianapiBaiduScraper } from "./sources/tianapi-baidu";
 import { CheerioWeiboScraper } from "./sources/cheerio-weibo";
 
 export function createScraper(
@@ -20,6 +21,9 @@ export function createScraper(
       }
       if (platformName === "douyin") {
         return new TianapiDouyinScraper(apiKey ?? "");
+      }
+      if (platformName === "baidu") {
+        return new TianapiBaiduScraper(apiKey ?? "");
       }
       return new TianapiWeiboScraper(apiKey ?? "");
     }
