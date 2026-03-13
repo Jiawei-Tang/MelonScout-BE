@@ -50,13 +50,16 @@
 
 Embedding 模型推荐优先级：
 
-| 模型 | 提供商 | 维度 | 中文效果 | 价格 |
-|------|--------|------|----------|------|
-| `text-embedding-v3` | 阿里通义 | 1024 | ★★★★★ | ¥0.0007/千 tokens |
-| `text-embedding-3-small` | OpenAI | 1536 | ★★★★ | $0.02/M tokens |
-| `BAAI/bge-m3` | 自建/HuggingFace | 1024 | ★★★★★ | 免费（需自建） |
+| 模型 | 提供商 | 维度 | 上下文 | 中文效果 | 价格 |
+|------|--------|------|--------|----------|------|
+| **`doubao-embedding-text-240715`** | **豆包（火山方舟）** | **2560**（可降至 1024） | 4K | ★★★★★ | 极低（复用已有 `DOUBAO_API_KEY`） |
+| `text-embedding-v3` | 阿里通义 | 1024 | 8K | ★★★★★ | ¥0.0007/千 tokens |
+| `text-embedding-3-small` | OpenAI | 1536 | 8K | ★★★★ | $0.02/M tokens |
+| `BAAI/bge-m3` | 自建/HuggingFace | 1024 | 8K | ★★★★★ | 免费（需自建） |
 
-> 建议首选通义千问 `text-embedding-v3`：中文效果最好、价格最低、国内访问快。
+> **首选 `doubao-embedding-text-240715`**：项目已接入豆包 API（`DOUBAO_API_KEY`），无需申请新 key；中英文效果好；API 端点与现有 chat API 同域名（`ark.cn-beijing.volces.com`），调用方式一致。
+>
+> 调用方式：`POST https://ark.cn-beijing.volces.com/api/v3/embeddings`，请求体 `{ "model": "doubao-embedding-text-240715", "input": ["文本1", "文本2"] }`，认证同现有 `Authorization: Bearer ${DOUBAO_API_KEY}`。支持批量输入（最多 256 条），单条最大 4096 tokens。
 
 ### 2.3 阈值决策——概念正确，阈值需校准
 
@@ -256,10 +259,12 @@ export interface EmbeddingProvider {
 
 实现策略与现有 `AIProvider` 一致——config-driven，支持多家：
 
-| Provider | 模型 | 维度 | 配置方式 |
-|----------|------|------|----------|
-| `dashscope` | `text-embedding-v3` | 1024 | `DASHSCOPE_API_KEY` |
+| Provider | 模型 | 最高维度 | 配置方式 |
+|----------|------|---------|----------|
+| **`doubao`** | `doubao-embedding-text-240715` | 2560（建议降至 1024） | **复用已有 `DOUBAO_API_KEY`** |
 | `openai` | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY`（复用已有） |
+
+> 豆包 embedding 与现有 `DoubaoProvider`（chat）共用同一个 API Key 和域名，只是端点不同（`/api/v3/embeddings` vs `/api/v3/responses`）。
 
 新增 `melonscout.config.json` 配置：
 
@@ -268,10 +273,10 @@ export interface EmbeddingProvider {
   "cluster": {
     "enabled": true,
     "embedding": {
-      "provider": "dashscope",       // "dashscope" | "openai"
-      "apiKeyEnv": "DASHSCOPE_API_KEY",
-      "model": "text-embedding-v3",
-      "dimensions": 1024
+      "provider": "doubao",          // "doubao" | "openai"
+      "apiKeyEnv": "DOUBAO_API_KEY", // 复用已有 key
+      "model": "doubao-embedding-text-240715",
+      "dimensions": 1024             // 从 2560 降维到 1024 节省存储
     },
     "thresholds": {
       "autoMerge": 0.92,             // ≥ 此值自动合并
@@ -373,7 +378,63 @@ src/cluster/
 | `drizzle-orm` | 已有 | Schema 定义（向量列用 raw SQL） |
 | Embedding API | 外部服务 | 通义千问 / OpenAI embedding 接口 |
 
-无需新增 npm 包——embedding API 调用通过原生 `fetch` 即可。pgvector 的 SQL 操作通过 Drizzle 的 `sql` tagged template 处理。
+无需新增 npm 包——embedding API 调用通过原生 `fetch` 即可（与现有 `DoubaoProvider` 一致）。pgvector 的 SQL 操作通过 Drizzle 的 `sql` tagged template 处理。
+
+#### Doubao Embedding 实现参考
+
+```typescript
+// src/cluster/embedding.ts
+
+class DoubaoEmbeddingProvider implements EmbeddingProvider {
+  readonly modelName = "doubao-embedding-text-240715";
+  readonly dimensions = 1024;
+  private apiKey: string;
+  private baseUrl = "https://ark.cn-beijing.volces.com/api/v3/embeddings";
+
+  constructor(apiKey: string, model?: string, dimensions?: number) {
+    this.apiKey = apiKey;
+    if (model) this.modelName = model;
+    if (dimensions) this.dimensions = dimensions;
+  }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    const resp = await fetch(this.baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.modelName,
+        input: texts,
+        // encoding_format: "float",  // 默认即 float
+      }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Doubao embedding API ${resp.status}: ${body}`);
+    }
+
+    const json = await resp.json() as {
+      data: Array<{ embedding: number[]; index: number }>;
+      usage: { prompt_tokens: number; total_tokens: number };
+    };
+
+    // 按 index 排序后返回
+    return json.data
+      .sort((a, b) => a.index - b.index)
+      .map((d) => d.embedding);
+  }
+
+  async embed(text: string): Promise<number[]> {
+    const [vec] = await this.embedBatch([text]);
+    return vec;
+  }
+}
+```
+
+> 注意：豆包 embedding API 支持批量输入（最多 256 条），所以 `embedBatch` 可以一次性处理整个爬虫批次，避免逐条请求。
 
 ---
 
