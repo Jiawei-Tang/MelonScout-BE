@@ -16,6 +16,7 @@ MelonScout-BE is a Bun + Hono backend with PostgreSQL (Drizzle ORM). It scrapes 
 |---------|-------------|------|
 | PostgreSQL | `sudo docker run -d --name melonscout-pg -e POSTGRES_DB=hot_search_db -e POSTGRES_PASSWORD=melonscout_dev -p 5432:5432 postgres:15-alpine` | 5432 |
 | Backend (dev) | `bun run dev` | 3000 |
+| Frontend (dev) | `cd frontend && bun run dev` | 5173 |
 
 - PostgreSQL must be running before the backend starts.
 - After starting Postgres for the first time, run `bun run db:push && bun run db:seed`.
@@ -30,18 +31,19 @@ See `package.json` scripts for the full list. Key commands:
 
 ### Scraper Sources
 
-Set `SCRAPER_SOURCE` in `.env`:
-- `placeholder` — mock data, no network needed (default for dev)
-- `tianapi` — live Weibo data from 天行数据 API (needs `TIANAPI_API_KEY`)
+Scraper types are configured **per-platform** in `melonscout.config.json` under `platforms.<name>.scraper.type`:
+- `placeholder` — mock data, no network needed (good for sandboxed dev)
+- `tianapi` — live data from 天行数据 API (needs `TIANAPI_API_KEY` env var)
 - `cheerio` — self-built Weibo HTML scraper
 
 ### AI Providers
 
-Set `AI_PROVIDER` in `.env`:
+AI provider is set in `melonscout.config.json` under `ai.provider` / `ai.apiKeyEnv`:
 - `google` — Gemini 2.0 Flash (needs `GOOGLE_AI_API_KEY`)
 - `openai` — GPT-4o-mini (needs `OPENAI_API_KEY`)
 - `deepseek` — DeepSeek-V3 (needs `DEEPSEEK_API_KEY`)
 - `minimax` — MiniMax-M2.5 (needs `MINIMAX_API_KEY`)
+- `doubao` — Doubao Seed (needs `DOUBAO_API_KEY`)
 - Falls back to keyword-based mock if no API key is set.
 
 ### Caveats
@@ -51,3 +53,5 @@ Set `AI_PROVIDER` in `.env`:
 - The `ANALYSIS_TOP_N` setting (default 10) limits Phase 1 triage to top-N titles per batch.
 - `DEEP_ANALYSIS_MAX` (default 5) caps Phase 2 fact-checks per batch to save AI tokens.
 - cheerio/tianapi scrapers require external network. Use `placeholder` source in sandboxed environments.
+- `bun test` has 1 pre-existing failure in `tests/scraper.test.ts` (`PlaceholderScraper` module not found). The other 35 tests pass.
+- Frontend dependencies: run `bun install` in `/workspace/frontend` separately. Set `VITE_API_BASE_URL=http://localhost:3000` in `frontend/.env`.
