@@ -7,7 +7,14 @@ import { runAllAnalysis, runAnalysisForPlatform } from "../ai/analyzer";
 
 const THRESHOLD_MS = appConfig.startup.fetchThresholdHours * 60 * 60 * 1000;
 
-async function checkStartup() {
+async function checkStartup(options: { scraperEnabled: boolean; aiAnalysisEnabled: boolean }) {
+  const { scraperEnabled, aiAnalysisEnabled } = options;
+
+  if (!scraperEnabled && !aiAnalysisEnabled) {
+    console.log("⏭️ Startup: scraper and AI analysis both disabled, skipping startup work");
+    return;
+  }
+
   const enabledPlatforms = getEnabledPlatforms();
   if (enabledPlatforms.length === 0) {
     console.log("⚠️ No platforms enabled, skipping startup check");
@@ -25,22 +32,33 @@ async function checkStartup() {
   const dataFresh = lastAt > 0 && now - lastAt < THRESHOLD_MS;
 
   if (!dataFresh) {
-    console.log("🚀 Startup: data stale or empty, running full scrape + analysis...");
-    for (const [name, platformCfg] of enabledPlatforms) {
-      try {
-        const scraper = createScraper(name, platformCfg.scraper);
-        if (!scraper) {
-          console.warn(`⚠️ Scraper not found for platform "${name}"`);
-          continue;
+    console.log("🚀 Startup: data stale or empty, running initial jobs...");
+
+    if (scraperEnabled) {
+      for (const [name, platformCfg] of enabledPlatforms) {
+        try {
+          const scraper = createScraper(name, platformCfg.scraper);
+          if (!scraper) {
+            console.warn(`⚠️ Scraper not found for platform "${name}"`);
+            continue;
+          }
+          await runPlatformScraper(name, scraper);
+        } catch (err) {
+          console.error(`❌ Startup scrape failed [${name}]:`, err);
         }
-        await runPlatformScraper(name, scraper);
-      } catch (err) {
-        console.error(`❌ Startup scrape failed [${name}]:`, err);
       }
+    } else {
+      console.log("📵 Startup: scraper disabled, skipping initial scrape");
     }
-    const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
-    const { triaged, factChecked } = await runAllAnalysis(platforms);
-    console.log(`✅ Startup done: triaged ${triaged}, fact-checked ${factChecked}`);
+
+    if (aiAnalysisEnabled) {
+      const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+      const { triaged, factChecked } = await runAllAnalysis(platforms);
+      console.log(`✅ Startup done: triaged ${triaged}, fact-checked ${factChecked}`);
+    } else {
+      console.log("📵 Startup: AI analysis disabled, skipping initial analysis");
+    }
+
     return;
   }
 
@@ -59,7 +77,7 @@ async function checkStartup() {
     .from(schema.aiAnalysis)
     .where(and(eq(schema.aiAnalysis.needsFactCheck, true), isNull(schema.aiAnalysis.deepAnalyzedAt)));
 
-  if (untriagedRows.length > 0 || uncheckedRows.length > 0) {
+  if (aiAnalysisEnabled && (untriagedRows.length > 0 || uncheckedRows.length > 0)) {
     console.log(
       `🔎 Startup: ${untriagedRows.length} untriaged, ${uncheckedRows.length} awaiting fact-check`,
     );
@@ -71,47 +89,65 @@ async function checkStartup() {
   }
 }
 
-export function startCronJobs() {
+export interface CronOptions {
+  scraperEnabled?: boolean;
+  aiAnalysisEnabled?: boolean;
+}
+
+export function startCronJobs(options: CronOptions = {}) {
+  const { scraperEnabled = true, aiAnalysisEnabled = true } = options;
+
   const enabledPlatforms = getEnabledPlatforms();
 
   console.log(`⏰ Registering cron jobs for ${enabledPlatforms.length} platform(s)...`);
 
-  // Per-platform scraper crons
-  for (const [name, platformCfg] of enabledPlatforms) {
-    if(name === "weibo") {
-      continue;
-    }
-    const scraper = createScraper(name, platformCfg.scraper);
-    const cronExpr = platformCfg.scraper.cron;
-    runPlatformScraper(name, scraper!);
+  if (!scraperEnabled) {
+    console.log("📵 Scraper cron disabled by env flag");
+  }
+  if (!aiAnalysisEnabled) {
+    console.log("📵 AI analysis cron disabled by env flag");
+  }
 
-    console.log(`  📡 [${name}] scraper cron: "${cronExpr}"`);
-    cron.schedule(cronExpr, async () => {
-      console.log(`\n🔄 [${new Date().toISOString()}] Scraper [${name}] started`);
-      try {
-        if (scraper) {
-          await runPlatformScraper(name, scraper);
+  // Per-platform scraper crons
+  if (scraperEnabled) {
+    for (const [name, platformCfg] of enabledPlatforms) {
+      if (name === "weibo") {
+        continue;
+      }
+      const scraper = createScraper(name, platformCfg.scraper);
+      const cronExpr = platformCfg.scraper.cron;
+      runPlatformScraper(name, scraper!);
+
+      console.log(`  📡 [${name}] scraper cron: "${cronExpr}"`);
+      cron.schedule(cronExpr, async () => {
+        console.log(`\n🔄 [${new Date().toISOString()}] Scraper [${name}] started`);
+        try {
+          if (scraper) {
+            await runPlatformScraper(name, scraper);
+          }
+        } catch (err) {
+          console.error(`❌ Scraper [${name}] failed:`, err);
         }
+      });
+    }
+  }
+
+  // AI analysis cron (runs for all enabled platforms)
+  if (aiAnalysisEnabled) {
+    const analysisCron = appConfig.ai.analysisCron;
+    console.log(`  🤖 AI analysis cron: "${analysisCron}"`);
+    cron.schedule(analysisCron, async () => {
+      console.log(`\n🤖 [${new Date().toISOString()}] AI analysis started`);
+      try {
+        const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
+        const { triaged, factChecked } = await runAllAnalysis(platforms);
+        console.log(`✅ AI analysis done: triaged ${triaged}, fact-checked ${factChecked}`);
       } catch (err) {
-        console.error(`❌ Scraper [${name}] failed:`, err);
+        console.error("❌ AI analysis failed:", err);
       }
     });
   }
 
-  // AI analysis cron (runs for all enabled platforms)
-  const analysisCron = appConfig.ai.analysisCron;
-  console.log(`  🤖 AI analysis cron: "${analysisCron}"`);
-  cron.schedule(analysisCron, async () => {
-    console.log(`\n🤖 [${new Date().toISOString()}] AI analysis started`);
-    try {
-      const platforms = enabledPlatforms.map(([name, cfg]) => ({ name, analysis: cfg.analysis }));
-      const { triaged, factChecked } = await runAllAnalysis(platforms);
-      console.log(`✅ AI analysis done: triaged ${triaged}, fact-checked ${factChecked}`);
-    } catch (err) {
-      console.error("❌ AI analysis failed:", err);
-    }
-  });
-
   // Startup check
-  void checkStartup();
+  void checkStartup({ scraperEnabled, aiAnalysisEnabled });
 }
