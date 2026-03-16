@@ -30,7 +30,7 @@ const ingestConfigSchema = z.object({
     autoMerge: z.number().default(0.85),
     aiJudge: z.number().default(0.70),
   }).default({}),
-  windowDays: z.number().default(7),
+  windowDays: z.number().default(3),
   neighborsLimit: z.number().default(5),
 }).default({});
 

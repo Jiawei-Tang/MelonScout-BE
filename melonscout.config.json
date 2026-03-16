@@ -108,7 +108,7 @@
       "autoMerge": 0.85,
       "aiJudge": 0.70
     },
-    "windowDays": 7,
+    "windowDays": 3,
     "neighborsLimit": 5
   }
 }
