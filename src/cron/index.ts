@@ -66,6 +66,12 @@ async function checkStartup(options: { scraperEnabled: boolean; aiAnalysisEnable
     `⏭️ Last fetch ${Math.round((now - lastAt) / 60000)}min ago (< ${appConfig.startup.fetchThresholdHours}h), skip scraping`,
   );
 
+  if (!aiAnalysisEnabled) {
+    console.log("📵 Startup: AI analysis disabled, skipping pending analysis check");
+    console.log("✅ All caught up, no pending work");
+    return;
+  }
+
   const untriagedRows = await db
     .select({ id: schema.hotSearches.id })
     .from(schema.hotSearches)
@@ -77,7 +83,7 @@ async function checkStartup(options: { scraperEnabled: boolean; aiAnalysisEnable
     .from(schema.aiAnalysis)
     .where(and(eq(schema.aiAnalysis.needsFactCheck, true), isNull(schema.aiAnalysis.deepAnalyzedAt)));
 
-  if (aiAnalysisEnabled && (untriagedRows.length > 0 || uncheckedRows.length > 0)) {
+  if (untriagedRows.length > 0 || uncheckedRows.length > 0) {
     console.log(
       `🔎 Startup: ${untriagedRows.length} untriaged, ${uncheckedRows.length} awaiting fact-check`,
     );
