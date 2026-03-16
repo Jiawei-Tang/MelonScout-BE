@@ -178,6 +178,14 @@ hot_searches
 ```
   raw_hot_searches (新增条目)
           │
+    ┌─────▼──────────┐
+    │ exactMatch()   │  精确标题匹配（纯 SQL，0 成本）
+    └─────┬──────────┘
+          │
+       命中？──YES──▶ 直接合并，跳过后续步骤
+          │
+          NO
+          │
     ┌─────▼──────┐
     │  embed()   │  调用 doubao embedding API
     └─────┬──────┘
@@ -205,10 +213,22 @@ export async function ingestRawItems(rawIds: number[]): Promise<void> {
   for (const rawId of rawIds) {
     const raw = await getRawHotSearch(rawId);
 
-    // 1. 生成 embedding
+    // ── Step 0: 精确标题匹配（免费，零延迟）────────────────
+    //    同一事件在同平台不同批次、或不同平台使用完全相同标题时命中。
+    //    SQL: SELECT id FROM hot_searches
+    //         WHERE title = $1
+    //           AND created_at > now() - interval '7 days'
+    //         LIMIT 1;
+    const exactMatch = await findExactTitle(raw.title, { days: 7 });
+    if (exactMatch) {
+      await mergeIntoExisting(exactMatch.id, raw, 1.0);  // similarity = 1.0
+      continue;
+    }
+
+    // ── Step 1: 生成 embedding ────────────────────────────
     const embedding = await embeddingProvider.embed(raw.title);
 
-    // 2. 在正式表中查找最相似的（7 天窗口）
+    // ── Step 2: 向量近邻搜索（7 天窗口）───────────────────
     //    SQL: SELECT id, title, 1 - (embedding <=> $1) AS similarity
     //         FROM hot_searches
     //         WHERE created_at > now() - interval '7 days'
@@ -218,6 +238,7 @@ export async function ingestRawItems(rawIds: number[]): Promise<void> {
     const neighbors = await findSimilar(embedding, { days: 7, limit: 5 });
     const best = neighbors[0];
 
+    // ── Step 3: 阈值决策 ──────────────────────────────────
     if (best && best.similarity >= THRESHOLD_AUTO_MERGE) {
       // ≥ 0.85: 自动合并到已有正式热搜
       await mergeIntoExisting(best.id, raw, best.similarity);
