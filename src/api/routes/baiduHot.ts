@@ -4,6 +4,7 @@ import { db, schema } from "../../db";
 import { appConfig, resolveEnv } from "../../config";
 import { createScraper } from "../../scraper";
 import { internalOnly } from "../middleware/internalOnly";
+import { ingestRawItems } from "../../ingest";
 
 const app = new Hono();
 app.use("*", internalOnly());
@@ -34,15 +35,21 @@ app.get("/", async (c) => {
   }
 
   const fetchedAt = new Date().toISOString();
+  const rawIds: number[] = [];
   for (const item of items) {
-    await db.insert(schema.hotSearches).values({
+    const [row] = await db.insert(schema.rawHotSearches).values({
       platformId: platform.id,
       title: item.title,
       url: item.url,
       heatValue: item.heatValue ?? null,
       rank: item.rank ?? null,
       extra: item.extra ?? null,
-    });
+    }).returning({ id: schema.rawHotSearches.id });
+    rawIds.push(row.id);
+  }
+
+  if (rawIds.length > 0 && appConfig.ingest.enabled) {
+    await ingestRawItems(rawIds);
   }
 
   const list = items.map((item) => ({
@@ -61,4 +68,3 @@ app.get("/", async (c) => {
 });
 
 export default app;
-

@@ -1,4 +1,4 @@
-import { eq, isNull, desc, and } from "drizzle-orm";
+import { eq, isNull, desc, and, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { aiProvider } from "./index";
 import type { AnalysisConfig } from "../config/schema";
@@ -31,20 +31,21 @@ export async function phaseOneTriage(
     .select({
       id: schema.hotSearches.id,
       title: schema.hotSearches.title,
-      rank: schema.hotSearches.rank,
+      maxRank: schema.hotSearches.maxRank,
+      platforms: schema.hotSearches.platforms,
     })
     .from(schema.hotSearches)
     .leftJoin(schema.aiAnalysis, eq(schema.hotSearches.id, schema.aiAnalysis.hotSearchId))
     .where(
       and(
-        eq(schema.hotSearches.platformId, platformId),
         isNull(schema.aiAnalysis.id),
+        sql`${schema.hotSearches.platforms}::jsonb @> ${JSON.stringify([{ id: platformId }])}::jsonb`,
       ),
     )
     .orderBy(desc(schema.hotSearches.createdAt));
 
   const candidates = topN > 0
-    ? unanalyzed.filter((item) => item.rank !== null && item.rank <= topN)
+    ? unanalyzed.filter((item) => item.maxRank !== null && item.maxRank <= topN)
     : unanalyzed;
 
   if (candidates.length === 0) return 0;
@@ -104,7 +105,7 @@ export async function phaseTwoFactCheck(
     .innerJoin(schema.hotSearches, eq(schema.aiAnalysis.hotSearchId, schema.hotSearches.id))
     .where(
       and(
-        eq(schema.hotSearches.platformId, platformId),
+        sql`${schema.hotSearches.platforms}::jsonb @> ${JSON.stringify([{ id: platformId }])}::jsonb`,
         eq(schema.aiAnalysis.needsFactCheck, true),
         isNull(schema.aiAnalysis.deepAnalyzedAt),
       ),

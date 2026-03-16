@@ -95,5 +95,20 @@
   },
   "startup": {
     "fetchThresholdHours": 6
+  },
+  "ingest": {
+    "enabled": true,
+    "embedding": {
+      "provider": "doubao",
+      "apiKeyEnv": "DOUBAO_API_KEY",
+      "endpointId": "ep-20260316113906-t5wmb",
+      "dimensions": 2048
+    },
+    "thresholds": {
+      "autoMerge": 0.85,
+      "aiJudge": 0.70
+    },
+    "windowDays": 7,
+    "neighborsLimit": 5
   }
 }

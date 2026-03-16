@@ -18,6 +18,22 @@ const platformConfigSchema = z.object({
   analysis: analysisConfigSchema,
 });
 
+const ingestConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  embedding: z.object({
+    provider: z.enum(["doubao", "openai"]).default("doubao"),
+    apiKeyEnv: z.string().default("DOUBAO_API_KEY"),
+    endpointId: z.string().optional(),
+    dimensions: z.number().default(2048),
+  }).default({}),
+  thresholds: z.object({
+    autoMerge: z.number().default(0.85),
+    aiJudge: z.number().default(0.70),
+  }).default({}),
+  windowDays: z.number().default(7),
+  neighborsLimit: z.number().default(5),
+}).default({});
+
 export const appConfigSchema = z.object({
   server: z.object({
     port: z.number().default(3000),
@@ -40,9 +56,11 @@ export const appConfigSchema = z.object({
   startup: z.object({
     fetchThresholdHours: z.number().default(6),
   }),
+  ingest: ingestConfigSchema,
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
 export type PlatformConfig = z.infer<typeof platformConfigSchema>;
 export type ScraperConfig = z.infer<typeof scraperConfigSchema>;
 export type AnalysisConfig = z.infer<typeof analysisConfigSchema>;
+export type IngestConfig = z.infer<typeof ingestConfigSchema>;
