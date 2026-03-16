@@ -4,8 +4,26 @@ import { appConfig, getEnabledPlatforms } from "../config";
 import { db, schema } from "../db";
 import { createScraper, runPlatformScraper } from "../scraper";
 import { runAllAnalysis, runAnalysisForPlatform } from "../ai/analyzer";
+import { ingestRawItems } from "../ingest";
 
 const THRESHOLD_MS = appConfig.startup.fetchThresholdHours * 60 * 60 * 1000;
+
+async function scrapeAndIngest(
+  name: string,
+  scraper: ReturnType<typeof createScraper>,
+): Promise<number[]> {
+  if (!scraper) return [];
+  const rawIds = await runPlatformScraper(name, scraper);
+  if (rawIds.length > 0 && appConfig.ingest.enabled) {
+    console.log(`🧮 Ingesting ${rawIds.length} items from [${name}]...`);
+    const stats = await ingestRawItems(rawIds);
+    console.log(
+      `✅ [${name}] ingest: exact=${stats.exactMatched} merged=${stats.autoMerged} ` +
+      `ai=${stats.aiMerged} new=${stats.created} fail=${stats.failed}`,
+    );
+  }
+  return rawIds;
+}
 
 async function checkStartup() {
   const enabledPlatforms = getEnabledPlatforms();
@@ -15,9 +33,9 @@ async function checkStartup() {
   }
 
   const [latest] = await db
-    .select({ createdAt: schema.hotSearches.createdAt })
-    .from(schema.hotSearches)
-    .orderBy(desc(schema.hotSearches.createdAt))
+    .select({ createdAt: schema.rawHotSearches.createdAt })
+    .from(schema.rawHotSearches)
+    .orderBy(desc(schema.rawHotSearches.createdAt))
     .limit(1);
 
   const lastAt = latest?.createdAt ? new Date(latest.createdAt).getTime() : 0;
@@ -25,15 +43,11 @@ async function checkStartup() {
   const dataFresh = lastAt > 0 && now - lastAt < THRESHOLD_MS;
 
   if (!dataFresh) {
-    console.log("🚀 Startup: data stale or empty, running full scrape + analysis...");
+    console.log("🚀 Startup: data stale or empty, running full scrape + ingest + analysis...");
     for (const [name, platformCfg] of enabledPlatforms) {
       try {
         const scraper = createScraper(name, platformCfg.scraper);
-        if (!scraper) {
-          console.warn(`⚠️ Scraper not found for platform "${name}"`);
-          continue;
-        }
-        await runPlatformScraper(name, scraper);
+        await scrapeAndIngest(name, scraper);
       } catch (err) {
         console.error(`❌ Startup scrape failed [${name}]:`, err);
       }
@@ -76,29 +90,26 @@ export function startCronJobs() {
 
   console.log(`⏰ Registering cron jobs for ${enabledPlatforms.length} platform(s)...`);
 
-  // Per-platform scraper crons
   for (const [name, platformCfg] of enabledPlatforms) {
     if(name === "weibo") {
       continue;
     }
     const scraper = createScraper(name, platformCfg.scraper);
     const cronExpr = platformCfg.scraper.cron;
-    runPlatformScraper(name, scraper!);
+
+    void scrapeAndIngest(name, scraper);
 
     console.log(`  📡 [${name}] scraper cron: "${cronExpr}"`);
     cron.schedule(cronExpr, async () => {
       console.log(`\n🔄 [${new Date().toISOString()}] Scraper [${name}] started`);
       try {
-        if (scraper) {
-          await runPlatformScraper(name, scraper);
-        }
+        await scrapeAndIngest(name, scraper);
       } catch (err) {
         console.error(`❌ Scraper [${name}] failed:`, err);
       }
     });
   }
 
-  // AI analysis cron (runs for all enabled platforms)
   const analysisCron = appConfig.ai.analysisCron;
   console.log(`  🤖 AI analysis cron: "${analysisCron}"`);
   cron.schedule(analysisCron, async () => {
@@ -112,6 +123,5 @@ export function startCronJobs() {
     }
   });
 
-  // Startup check
   void checkStartup();
 }

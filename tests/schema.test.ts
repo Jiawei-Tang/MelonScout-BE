@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { getTableName } from "drizzle-orm";
-import { platforms, hotSearches, aiAnalysis } from "../src/db/schema";
+import { platforms, hotSearches, rawHotSearches, aiAnalysis } from "../src/db/schema";
 
 describe("Database Schema: platforms", () => {
   test("table name is platforms", () => {
@@ -14,20 +14,39 @@ describe("Database Schema: platforms", () => {
   });
 });
 
-describe("Database Schema: hotSearches", () => {
+describe("Database Schema: rawHotSearches", () => {
+  test("table name is raw_hot_searches", () => {
+    expect(getTableName(rawHotSearches)).toBe("raw_hot_searches");
+  });
+
+  test("has all required columns", () => {
+    expect(rawHotSearches.id).toBeDefined();
+    expect(rawHotSearches.platformId).toBeDefined();
+    expect(rawHotSearches.title).toBeDefined();
+    expect(rawHotSearches.url).toBeDefined();
+    expect(rawHotSearches.heatValue).toBeDefined();
+    expect(rawHotSearches.rank).toBeDefined();
+    expect(rawHotSearches.createdAt).toBeDefined();
+    expect(rawHotSearches.extra).toBeDefined();
+    expect(rawHotSearches.hotSearchId).toBeDefined();
+  });
+});
+
+describe("Database Schema: hotSearches (formal)", () => {
   test("table name is hot_searches", () => {
     expect(getTableName(hotSearches)).toBe("hot_searches");
   });
 
-  test("has all required columns", () => {
+  test("has multi-platform and aggregation columns", () => {
     expect(hotSearches.id).toBeDefined();
-    expect(hotSearches.platformId).toBeDefined();
     expect(hotSearches.title).toBeDefined();
-    expect(hotSearches.url).toBeDefined();
-    expect(hotSearches.heatValue).toBeDefined();
-    expect(hotSearches.rank).toBeDefined();
+    expect(hotSearches.platforms).toBeDefined();
+    expect(hotSearches.sourceCount).toBeDefined();
+    expect(hotSearches.maxHeatValue).toBeDefined();
+    expect(hotSearches.maxRank).toBeDefined();
+    expect(hotSearches.representativeUrl).toBeDefined();
     expect(hotSearches.createdAt).toBeDefined();
-    expect(hotSearches.extra).toBeDefined();
+    expect(hotSearches.updatedAt).toBeDefined();
   });
 });
 

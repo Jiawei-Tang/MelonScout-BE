@@ -12,10 +12,10 @@ const DEFAULT_DAYS = 7;
 const heatValueNum = sql<number>`
   COALESCE(
     CASE
-      WHEN ${schema.hotSearches.heatValue} IS NULL THEN 0
-      WHEN ${schema.hotSearches.heatValue} LIKE '%亿%' THEN COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.heatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric * 100000000
-      WHEN ${schema.hotSearches.heatValue} LIKE '%万%' THEN COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.heatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric * 10000
-      ELSE COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.heatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric
+      WHEN ${schema.hotSearches.maxHeatValue} IS NULL THEN 0
+      WHEN ${schema.hotSearches.maxHeatValue} LIKE '%亿%' THEN COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.maxHeatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric * 100000000
+      WHEN ${schema.hotSearches.maxHeatValue} LIKE '%万%' THEN COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.maxHeatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric * 10000
+      ELSE COALESCE(NULLIF(REGEXP_REPLACE(${schema.hotSearches.maxHeatValue}, '[^0-9\\.]', '', 'g'), ''), '0')::numeric
     END,
     0
   )
@@ -57,7 +57,11 @@ app.get("/", async (c) => {
   const windowStartIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   const whereConds = [gte(effectiveUpdatedAt, windowStartIso)];
-  if (platformId) whereConds.push(eq(schema.hotSearches.platformId, Number(platformId)));
+  if (platformId) {
+    whereConds.push(
+      sql`${schema.hotSearches.platforms}::jsonb @> ${JSON.stringify([{ id: Number(platformId) }])}::jsonb`,
+    );
+  }
   if (hasAnalysis === true) whereConds.push(isNotNull(schema.aiAnalysis.id));
   if (onlyClickbait === true) {
     whereConds.push(sql`(${schema.aiAnalysis.isClickbait} = true OR ${schema.aiAnalysis.score} >= 51)`);
@@ -66,13 +70,14 @@ app.get("/", async (c) => {
   const rows = await db
     .select({
       id: schema.hotSearches.id,
-      platformId: schema.hotSearches.platformId,
       title: schema.hotSearches.title,
-      url: schema.hotSearches.url,
-      heatValue: schema.hotSearches.heatValue,
-      rank: schema.hotSearches.rank,
+      platforms: schema.hotSearches.platforms,
+      sourceCount: schema.hotSearches.sourceCount,
+      maxHeatValue: schema.hotSearches.maxHeatValue,
+      maxRank: schema.hotSearches.maxRank,
+      representativeUrl: schema.hotSearches.representativeUrl,
       createdAt: schema.hotSearches.createdAt,
-      extra: schema.hotSearches.extra,
+      updatedAt: schema.hotSearches.updatedAt,
       analysis: {
         id: schema.aiAnalysis.id,
         needsFactCheck: schema.aiAnalysis.needsFactCheck,
@@ -126,13 +131,14 @@ app.get("/:id", async (c) => {
   const result = await db
     .select({
       id: schema.hotSearches.id,
-      platformId: schema.hotSearches.platformId,
       title: schema.hotSearches.title,
-      url: schema.hotSearches.url,
-      heatValue: schema.hotSearches.heatValue,
-      rank: schema.hotSearches.rank,
+      platforms: schema.hotSearches.platforms,
+      sourceCount: schema.hotSearches.sourceCount,
+      maxHeatValue: schema.hotSearches.maxHeatValue,
+      maxRank: schema.hotSearches.maxRank,
+      representativeUrl: schema.hotSearches.representativeUrl,
       createdAt: schema.hotSearches.createdAt,
-      extra: schema.hotSearches.extra,
+      updatedAt: schema.hotSearches.updatedAt,
       analysis: {
         id: schema.aiAnalysis.id,
         needsFactCheck: schema.aiAnalysis.needsFactCheck,
@@ -162,6 +168,26 @@ app.get("/:id", async (c) => {
   return c.json({ data: result[0] });
 });
 
+app.get("/:id/sources", async (c) => {
+  const id = Number(c.req.param("id"));
+  const sources = await db
+    .select({
+      id: schema.rawHotSearches.id,
+      platformId: schema.rawHotSearches.platformId,
+      title: schema.rawHotSearches.title,
+      url: schema.rawHotSearches.url,
+      heatValue: schema.rawHotSearches.heatValue,
+      rank: schema.rawHotSearches.rank,
+      extra: schema.rawHotSearches.extra,
+      createdAt: schema.rawHotSearches.createdAt,
+    })
+    .from(schema.rawHotSearches)
+    .where(eq(schema.rawHotSearches.hotSearchId, id))
+    .orderBy(desc(schema.rawHotSearches.createdAt));
+
+  return c.json({ data: sources });
+});
+
 app.get("/highlights/top", async (c) => {
   const days = Math.min(parsePositiveInt(c.req.query("days"), DEFAULT_DAYS), MAX_DAYS);
   const windowStartIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -169,13 +195,14 @@ app.get("/highlights/top", async (c) => {
   const rows = await db
     .select({
       id: schema.hotSearches.id,
-      platformId: schema.hotSearches.platformId,
       title: schema.hotSearches.title,
-      url: schema.hotSearches.url,
-      heatValue: schema.hotSearches.heatValue,
-      rank: schema.hotSearches.rank,
+      platforms: schema.hotSearches.platforms,
+      sourceCount: schema.hotSearches.sourceCount,
+      maxHeatValue: schema.hotSearches.maxHeatValue,
+      maxRank: schema.hotSearches.maxRank,
+      representativeUrl: schema.hotSearches.representativeUrl,
       createdAt: schema.hotSearches.createdAt,
-      extra: schema.hotSearches.extra,
+      updatedAt: schema.hotSearches.updatedAt,
       analysis: {
         id: schema.aiAnalysis.id,
         needsFactCheck: schema.aiAnalysis.needsFactCheck,

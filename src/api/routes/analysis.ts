@@ -4,6 +4,7 @@ import { db, schema } from "../../db";
 import { appConfig, getEnabledPlatforms } from "../../config";
 import { runAllAnalysis } from "../../ai/analyzer";
 import { createScraper, runPlatformScraper } from "../../scraper";
+import { ingestRawItems } from "../../ingest";
 
 const app = new Hono();
 
@@ -43,7 +44,12 @@ app.post("/scrape", async (c) => {
         console.warn(`⚠️ Scraper not found for platform "${name}"`);
         continue;
       }
-      totalScraped += await runPlatformScraper(name, scraper);
+      const rawIds = await runPlatformScraper(name, scraper);
+      totalScraped += rawIds.length;
+
+      if (rawIds.length > 0 && appConfig.ingest.enabled) {
+        await ingestRawItems(rawIds);
+      }
     } catch (err) {
       console.error(`❌ Scrape failed [${name}]:`, err);
     }
