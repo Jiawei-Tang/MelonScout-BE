@@ -50,16 +50,17 @@
 
 Embedding 模型推荐优先级：
 
-| 模型 | 提供商 | 维度 | 上下文 | 中文效果 | 价格 |
-|------|--------|------|--------|----------|------|
-| **`doubao-embedding-text-240715`** | **豆包（火山方舟）** | **2560**（可降至 1024） | 4K | ★★★★★ | 极低（复用已有 `DOUBAO_API_KEY`） |
-| `text-embedding-v3` | 阿里通义 | 1024 | 8K | ★★★★★ | ¥0.0007/千 tokens |
-| `text-embedding-3-small` | OpenAI | 1536 | 8K | ★★★★ | $0.02/M tokens |
-| `BAAI/bge-m3` | 自建/HuggingFace | 1024 | 8K | ★★★★★ | 免费（需自建） |
+| 模型 | 提供商 | 维度 | 中文效果 | 价格 |
+|------|--------|------|----------|------|
+| **`doubao-embedding-vision`（多模态）** | **豆包（火山方舟）** | **2048** | ★★★★★ | 极低（复用已有 `DOUBAO_API_KEY`） |
+| `text-embedding-v3` | 阿里通义 | 1024 | ★★★★★ | ¥0.0007/千 tokens |
+| `text-embedding-3-small` | OpenAI | 1536 | ★★★★ | $0.02/M tokens |
 
-> **首选 `doubao-embedding-text-240715`**：项目已接入豆包 API（`DOUBAO_API_KEY`），无需申请新 key；中英文效果好；API 端点与现有 chat API 同域名（`ark.cn-beijing.volces.com`），调用方式一致。
+> **首选 `doubao-embedding-vision`（多模态）**：项目已接入豆包 API（`DOUBAO_API_KEY`），无需申请新 key。
 >
-> 调用方式：`POST https://ark.cn-beijing.volces.com/api/v3/embeddings`，请求体 `{ "model": "doubao-embedding-text-240715", "input": ["文本1", "文本2"] }`，认证同现有 `Authorization: Bearer ${DOUBAO_API_KEY}`。支持批量输入（最多 256 条），单条最大 4096 tokens。
+> ⚠️ 注意：豆包单模态 text embedding 模型已停止新开通，需使用多模态 embedding 模型（仅传文本即可，不必传图片）。多模态模型需要在 ARK 控制台创建**推理接入点**（endpoint），获得 `ep-xxxxx` 格式的 ID。
+>
+> 调用方式：`POST https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal`，请求体中每条 input 是 `{ "type": "text", "text": "..." }` 对象（非纯字符串），每次调用返回一个合成向量。比较两条标题需要分别调用。
 
 ### 2.3 阈值决策——概念正确，阈值需校准
 
@@ -69,13 +70,22 @@ Embedding 模型推荐优先级：
 
 | 余弦相似度 | 判定 | 处理方式 |
 |-----------|------|----------|
-| ≥ 0.92 | 几乎确定是同一事件 | 自动合并，不调用 AI |
-| 0.80 – 0.92 | 疑似同一事件 | 调用 AI 判断 + 提取归一化标题 |
-| < 0.80 | 不同事件 | 跳过 |
+| ≥ 0.90 | 几乎确定是同一事件 | 自动合并，不调用 AI |
+| 0.75 – 0.90 | 疑似同一事件 | 调用 AI 判断 + 提取归一化标题 |
+| < 0.75 | 不同事件 | 跳过 |
 
-> ⚠️ 以上阈值是基于 `text-embedding-3-small` 对中文短文本的经验估计。**必须用真实热搜数据做一轮标注和校准**。建议收集 100 对人工标注的「相同/不同」热搜对，画 ROC 曲线确定最优阈值。
->
-> 阈值应放在 `melonscout.config.json` 中，方便调整而不需要改代码。
+#### 实测数据（doubao-embedding-vision multimodal, 2048 维）
+
+```
+0.9162  "雷军送苏炳添小米14"     vs "苏炳添晒出雷军赠送的小米14定制版"  → 同一事件
+0.8826  "震惊！雷军竟然给苏炳添…" vs "苏炳添晒出雷军赠送的小米14定制版"  → 同一事件（标题党 vs 中性）
+0.7737  "雷军送苏炳添小米14"     vs "雷军回应赠送苏炳添手机：向体育精神致敬" → 同话题不同角度
+0.3564  "雷军送苏炳添小米14"     vs "华为发布Mate70系列手机"           → 同领域不同事件
+0.2949  "雷军送苏炳添小米14"     vs "今天北京暴雨红色预警"             → 完全无关
+0.1925  "苏炳添晒出雷军赠送…"   vs "特朗普宣布新一轮关税政策"          → 完全无关
+```
+
+> 阈值基于 `doubao-embedding-vision` 多模态模型实测校准。同一事件的不同措辞相似度集中在 0.88–0.92，同话题不同角度约 0.77，无关事件 < 0.36。阈值 0.90/0.75 可在 `melonscout.config.json` 中调整。
 
 ### 2.4 AI 归一化标题——优秀的补充 ✅
 
@@ -125,8 +135,8 @@ hot_search_cluster_members
 -- 需要先安装 pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 添加向量列（维度取决于 embedding 模型）
-ALTER TABLE hot_searches ADD COLUMN embedding vector(1024);
+-- 添加向量列（doubao-embedding-vision 输出 2048 维）
+ALTER TABLE hot_searches ADD COLUMN embedding vector(2048);
 
 -- 创建 HNSW 索引（余弦距离）
 CREATE INDEX idx_hot_searches_embedding ON hot_searches
@@ -259,12 +269,12 @@ export interface EmbeddingProvider {
 
 实现策略与现有 `AIProvider` 一致——config-driven，支持多家：
 
-| Provider | 模型 | 最高维度 | 配置方式 |
-|----------|------|---------|----------|
-| **`doubao`** | `doubao-embedding-text-240715` | 2560（建议降至 1024） | **复用已有 `DOUBAO_API_KEY`** |
-| `openai` | `text-embedding-3-small` | 1536 | `OPENAI_API_KEY`（复用已有） |
+| Provider | 模型 | 维度 | 端点 | 配置方式 |
+|----------|------|------|------|----------|
+| **`doubao`** | `doubao-embedding-vision`（多模态） | 2048 | `/api/v3/embeddings/multimodal` | **复用已有 `DOUBAO_API_KEY`** + 推理接入点 `ep-xxxxx` |
+| `openai` | `text-embedding-3-small` | 1536 | `/v1/embeddings` | `OPENAI_API_KEY` |
 
-> 豆包 embedding 与现有 `DoubaoProvider`（chat）共用同一个 API Key 和域名，只是端点不同（`/api/v3/embeddings` vs `/api/v3/responses`）。
+> 豆包多模态 embedding 与现有 `DoubaoProvider`（chat）共用同一个 API Key 和域名，但端点路径不同（`/api/v3/embeddings/multimodal` vs `/api/v3/responses`），且需要通过推理接入点 ID 调用。
 
 新增 `melonscout.config.json` 配置：
 
@@ -275,12 +285,12 @@ export interface EmbeddingProvider {
     "embedding": {
       "provider": "doubao",          // "doubao" | "openai"
       "apiKeyEnv": "DOUBAO_API_KEY", // 复用已有 key
-      "model": "doubao-embedding-text-240715",
-      "dimensions": 1024             // 从 2560 降维到 1024 节省存储
+      "endpointId": "ep-20260316113906-t5wmb", // 推理接入点 ID
+      "dimensions": 2048
     },
     "thresholds": {
-      "autoMerge": 0.92,             // ≥ 此值自动合并
-      "mayBeSame": 0.80              // ≥ 此值进入 AI 判断
+      "autoMerge": 0.90,             // ≥ 此值自动合并（实测同事件 ~0.88-0.92）
+      "mayBeSame": 0.75              // ≥ 此值进入 AI 判断（实测同话题 ~0.77）
     },
     "windowDays": 7,                 // 只在 N 天内查找相似项
     "neighborsLimit": 5              // KNN 取 top-K
@@ -376,28 +386,28 @@ src/cluster/
 |------|------|------|
 | `pgvector` PG 扩展 | 数据库层 | `CREATE EXTENSION vector`，Docker 镜像用 `pgvector/pgvector:pg15` |
 | `drizzle-orm` | 已有 | Schema 定义（向量列用 raw SQL） |
-| Embedding API | 外部服务 | 通义千问 / OpenAI embedding 接口 |
+| Doubao 多模态 Embedding API | 外部服务 | `doubao-embedding-vision` 通过推理接入点 `ep-xxxxx` 调用 |
 
 无需新增 npm 包——embedding API 调用通过原生 `fetch` 即可（与现有 `DoubaoProvider` 一致）。pgvector 的 SQL 操作通过 Drizzle 的 `sql` tagged template 处理。
 
-#### Doubao Embedding 实现参考
+#### Doubao 多模态 Embedding 实现参考
 
 ```typescript
 // src/cluster/embedding.ts
 
 class DoubaoEmbeddingProvider implements EmbeddingProvider {
-  readonly modelName = "doubao-embedding-text-240715";
-  readonly dimensions = 1024;
+  readonly modelName = "doubao-embedding-vision";
+  readonly dimensions = 2048;
   private apiKey: string;
-  private baseUrl = "https://ark.cn-beijing.volces.com/api/v3/embeddings";
+  private endpointId: string;
+  private baseUrl = "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal";
 
-  constructor(apiKey: string, model?: string, dimensions?: number) {
+  constructor(apiKey: string, endpointId: string) {
     this.apiKey = apiKey;
-    if (model) this.modelName = model;
-    if (dimensions) this.dimensions = dimensions;
+    this.endpointId = endpointId;
   }
 
-  async embedBatch(texts: string[]): Promise<number[][]> {
+  async embed(text: string): Promise<number[]> {
     const resp = await fetch(this.baseUrl, {
       method: "POST",
       headers: {
@@ -405,9 +415,8 @@ class DoubaoEmbeddingProvider implements EmbeddingProvider {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        model: this.modelName,
-        input: texts,
-        // encoding_format: "float",  // 默认即 float
+        model: this.endpointId,
+        input: [{ type: "text", text }],
       }),
     });
 
@@ -416,25 +425,29 @@ class DoubaoEmbeddingProvider implements EmbeddingProvider {
       throw new Error(`Doubao embedding API ${resp.status}: ${body}`);
     }
 
-    const json = await resp.json() as {
-      data: Array<{ embedding: number[]; index: number }>;
+    const json = (await resp.json()) as {
+      data: { embedding: number[] };
       usage: { prompt_tokens: number; total_tokens: number };
     };
-
-    // 按 index 排序后返回
-    return json.data
-      .sort((a, b) => a.index - b.index)
-      .map((d) => d.embedding);
+    return json.data.embedding;
   }
 
-  async embed(text: string): Promise<number[]> {
-    const [vec] = await this.embedBatch([text]);
-    return vec;
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    // 多模态端点每次调用返回单个合成向量，需逐条请求
+    // 使用 Promise.all 并发调用，控制并发数避免限流
+    const CONCURRENCY = 5;
+    const results: number[][] = [];
+    for (let i = 0; i < texts.length; i += CONCURRENCY) {
+      const batch = texts.slice(i, i + CONCURRENCY);
+      const vecs = await Promise.all(batch.map((t) => this.embed(t)));
+      results.push(...vecs);
+    }
+    return results;
   }
 }
 ```
 
-> 注意：豆包 embedding API 支持批量输入（最多 256 条），所以 `embedBatch` 可以一次性处理整个爬虫批次，避免逐条请求。
+> ⚠️ 与标准 OpenAI embedding API 不同，豆包多模态端点的 `input` 是对象数组（`{type, text}`），且每次调用只返回一个向量。批量处理需并发调用。实测单次调用延迟 ~200ms，5 并发处理 50 条热搜约 2 秒。
 
 ---
 
@@ -447,7 +460,7 @@ class DoubaoEmbeddingProvider implements EmbeddingProvider {
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 2. 热搜表添加向量列
-ALTER TABLE hot_searches ADD COLUMN embedding vector(1024);
+ALTER TABLE hot_searches ADD COLUMN embedding vector(2048);
 
 -- 3. 创建 HNSW 索引
 CREATE INDEX idx_hot_searches_embedding
@@ -508,8 +521,8 @@ CREATE INDEX idx_cluster_members_cluster ON hot_search_cluster_members(cluster_i
 
 1. PostgreSQL 换用 `pgvector/pgvector:pg15` Docker 镜像
 2. 新增 `hot_search_clusters` + `hot_search_cluster_members` 表
-3. `hot_searches` 添加 `embedding vector(1024)` 列 + HNSW 索引
-4. 实现 `EmbeddingProvider`（先只做一家，如 OpenAI）
+3. `hot_searches` 添加 `embedding vector(2048)` 列 + HNSW 索引
+4. 实现 `DoubaoEmbeddingProvider`（多模态端点，复用已有 API Key）
 5. 实现 `clusterNewItems` 核心逻辑
 6. 修改 `runPlatformScraper` 返回新增 IDs
 7. Cron 中调用聚类
