@@ -1,4 +1,4 @@
-import { eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import type { SimilarityMatch } from "./types";
 
@@ -12,8 +12,10 @@ export async function findExactTitle(
     .select({ id: schema.hotSearches.id })
     .from(schema.hotSearches)
     .where(
-      sql`${schema.hotSearches.title} = ${title}
-        AND ${schema.hotSearches.createdAt} >= ${cutoff}`,
+      and(
+        eq(schema.hotSearches.title, title),
+        gte(schema.hotSearches.createdAt, cutoff),
+      ),
     )
     .limit(1);
 
@@ -26,6 +28,7 @@ export async function findSimilar(
   limit: number,
 ): Promise<SimilarityMatch[]> {
   const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const cutoffIso = cutoff.toISOString();
   const vecLiteral = `[${embedding.join(",")}]`;
 
   const rows = await db.execute<{
@@ -38,7 +41,7 @@ export async function findSimilar(
       title,
       1 - (embedding <=> ${vecLiteral}::vector) AS similarity
     FROM hot_searches
-    WHERE created_at >= ${cutoff}
+    WHERE created_at >= ${cutoffIso}
       AND embedding IS NOT NULL
     ORDER BY embedding <=> ${vecLiteral}::vector
     LIMIT ${limit}
