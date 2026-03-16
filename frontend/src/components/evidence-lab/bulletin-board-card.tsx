@@ -18,12 +18,12 @@ export function BulletinBoardCard() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => window.alert("谢谢金主爸爸，暂时还未开通支付，如果方便请去 GitHub 点个 Star 吧。")}
+            onClick={() => window.alert("谢谢金主爸爸，暂未开通支付。祝您吃瓜永远有座，吃完从不反转。")}
             className="rounded-md bg-detective-green px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
           >
             给伯伯买只瓜
           </button>
-          <a
+          {/* <a
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
@@ -31,7 +31,7 @@ export function BulletinBoardCard() {
           >
             <Star size={14} fill="yellow" stroke="gold" />
             去 GitHub 比个星
-          </a>
+          </a> */}
         </div>
         <AdSpotBanner />
       </CardContent>
