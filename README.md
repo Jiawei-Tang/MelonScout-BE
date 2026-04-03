@@ -1,6 +1,6 @@
-# MelonScout-BE 🍉🔍
+# MelonScout 🍉🔍
 
-Backend of MelonScout (瓜田侦探) — a hot search clickbait detection service.
+Frontend and backend of MelonScout (瓜田侦探) — a hot search clickbait detection service.
 
 ## Architecture
 
